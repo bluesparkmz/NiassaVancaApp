@@ -2,6 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 import schemmas
@@ -48,20 +49,38 @@ async def register(
         file_path.write_bytes(content)
         avatar_path = f"uploads/{filename}"
 
+    parsed_birth_date = None
+    if birth_date:
+        try:
+            parsed_birth_date = schemmas.date.fromisoformat(birth_date)
+        except Exception:
+            raise HTTPException(status_code=400, detail="birth_date invalida, use YYYY-MM-DD")
+
     user_in = schemmas.UserCreate(
         name=name,
         avatar=avatar_path,
         username=username,
         phone=phone,
         sex=sex,
-        birth_date=birth_date,
+        birth_date=parsed_birth_date,
         password=password,
     )
     return user_controller.create_user(db, user_in)
 
 
 @router.post("/login", response_model=schemmas.Token)
-def login(payload: schemmas.LoginRequest, db: Session = Depends(get_db)):
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # Comentario: login via form-data (Swagger UI).
+    user = user_controller.authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Credenciais invalidas")
+    token = create_access_token({"sub": user.id})
+    return schemmas.Token(access_token=token)
+
+
+@router.post("/login-json", response_model=schemmas.Token)
+def login_json(payload: schemmas.LoginRequest, db: Session = Depends(get_db)):
+    # Comentario: login via JSON para clientes custom.
     user = user_controller.authenticate_user(db, payload.username, payload.password)
     if not user:
         raise HTTPException(status_code=401, detail="Credenciais invalidas")
