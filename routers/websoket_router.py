@@ -42,8 +42,9 @@ async def _heartbeat_loop(ws: WebSocket, interval: int = 30):
 @router.websocket("")
 @router.websocket("/chat")
 async def chat_socket(websocket: WebSocket):
-    db: Session = SessionLocal()
     user: models.User | None = None
+    user_id: int | None = None
+    group_ids: list[int] = []
     heartbeat_task: asyncio.Task | None = None
     try:
         token = _extract_token(websocket)
@@ -52,7 +53,15 @@ async def chat_socket(websocket: WebSocket):
             await websocket.close(code=1008, reason="Token obrigatorio")
             return
 
-        user = get_user_from_token(token, db)
+        # Comentario: autentica com sessao curta para nao prender conexao no pool.
+        db_auth: Session = SessionLocal()
+        try:
+            user = get_user_from_token(token, db_auth)
+            user_id = user.id
+            group_ids = [membership.group_id for membership in user.group_memberships]
+        finally:
+            db_auth.close()
+
         connection = Connection(
             id=user.id,
             username=user.username,
@@ -63,8 +72,8 @@ async def chat_socket(websocket: WebSocket):
         )
         await global_connection_manager.connect(connection)
 
-        for membership in user.group_memberships:
-            global_connection_manager.join_group(user.id, membership.group_id)
+        for group_id in group_ids:
+            global_connection_manager.join_group(user.id, group_id)
 
         # Comentario: envia snapshot inicial de usuarios online para o cliente.
         online_user_ids = [online_user["id"] for online_user in global_connection_manager.get_online_users()]
@@ -94,24 +103,28 @@ async def chat_socket(websocket: WebSocket):
 
             if payload.type == "read_all" and payload.receiver_id:
                 # Comentario: marca mensagens recebidas como lidas e avisa o sender.
-                messages = (
-                    db.query(models.Message)
-                    .filter(
-                        models.Message.sender_id == payload.receiver_id,
-                        models.Message.receiver_id == user.id,
+                db_msg: Session = SessionLocal()
+                try:
+                    messages = (
+                        db_msg.query(models.Message)
+                        .filter(
+                            models.Message.sender_id == payload.receiver_id,
+                            models.Message.receiver_id == user.id,
+                        )
+                        .all()
                     )
-                    .all()
-                )
-                message_ids = [m.id for m in messages]
-                if message_ids:
-                    message_controller.mark_messages_read(db, message_ids, user.id)
-                    await global_connection_manager.send_personal(
-                        payload.receiver_id,
-                        {
-                            "type": "messages_read",
-                            "data": {"by_user": user.id, "message_ids": message_ids},
-                        },
-                    )
+                    message_ids = [m.id for m in messages]
+                    if message_ids:
+                        message_controller.mark_messages_read(db_msg, message_ids, user.id)
+                        await global_connection_manager.send_personal(
+                            payload.receiver_id,
+                            {
+                                "type": "messages_read",
+                                "data": {"by_user": user.id, "message_ids": message_ids},
+                            },
+                        )
+                finally:
+                    db_msg.close()
                 continue
 
             if payload.type == "message":
@@ -122,7 +135,11 @@ async def chat_socket(websocket: WebSocket):
                     media_url=payload.media_url,
                     media_type=payload.media_type,
                 )
-                message = message_controller.create_message(db, user.id, message_in)
+                db_msg: Session = SessionLocal()
+                try:
+                    message = message_controller.create_message(db_msg, user.id, message_in)
+                finally:
+                    db_msg.close()
                 response = {
                     "type": "message",
                     "message": {
@@ -176,9 +193,9 @@ async def chat_socket(websocket: WebSocket):
             await websocket.send_json({"type": "error", "detail": "Tipo desconhecido"})
 
     except WebSocketDisconnect:
-        if user:
-            await global_connection_manager.disconnect(user.id, websocket=websocket)
+        pass
     finally:
         if heartbeat_task:
             heartbeat_task.cancel()
-        db.close()
+        if user_id is not None:
+            await global_connection_manager.disconnect(user_id, websocket=websocket)
