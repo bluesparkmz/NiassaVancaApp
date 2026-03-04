@@ -50,18 +50,22 @@ def get_user_push_tokens(
     legacy_token: str | None = None,
 ) -> list[str]:
     tokens: set[str] = set()
+    app_android_package = "com.bluesparkmz.meuchat"
 
-    device_tokens = (
-        db.query(models.PushDevice.token)
+    device_rows = (
+        db.query(models.PushDevice.token, models.PushDevice.platform)
         .filter(models.PushDevice.user_id == user_id)
         .all()
     )
-    for row in device_tokens:
+    for row in device_rows:
         token = row[0]
+        platform = row[1] or ""
+        # Comentario: envia push apenas para build standalone do app oficial.
+        if "standalone" not in platform:
+            continue
+        if app_android_package not in platform:
+            continue
         if is_expo_push_token(token):
             tokens.add(token)
-
-    if is_expo_push_token(legacy_token):
-        tokens.add(legacy_token)  # type: ignore[arg-type]
 
     return list(tokens)
