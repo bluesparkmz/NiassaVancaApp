@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -7,6 +7,7 @@ import models
 import schemmas
 from auth import get_current_user
 from database import get_db
+from controllers.storage_manager import POSTS_FOLDER, storage_manager
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -25,6 +26,20 @@ def _count_post_likes(db: Session, post_id: int) -> int:
         .scalar()
         or 0
     )
+
+
+async def _resolve_post_image_url(
+    image: UploadFile | None,
+    image_url: str | None,
+) -> str | None:
+    if image is not None:
+        return await storage_manager.upload_file(
+            image,
+            POSTS_FOLDER,
+            allowed_mime_prefixes=("image/",),
+        )
+    cleaned_url = (image_url or "").strip()
+    return cleaned_url or None
 
 
 def _build_post_out(post: models.Post, current_user_id: int, db: Session) -> schemmas.PostOut:
@@ -94,25 +109,39 @@ def get_post(
 
 
 @router.post("/", response_model=schemmas.PostOut, status_code=status.HTTP_201_CREATED)
-def create_post(
-    payload: schemmas.PostCreate,
+async def create_post(
+    title: str = Form(...),
+    content: str = Form(...),
+    category: schemmas.TopicLiteral | None = Form(default=None),
+    topic: schemmas.TopicLiteral | None = Form(default=None),
+    image: UploadFile | None = File(default=None),
+    image_url: str | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     _ensure_admin(current_user)
 
-    category = payload.category or payload.topic
-    if not category:
+    resolved_category = category or topic
+    if not resolved_category:
         raise HTTPException(status_code=400, detail="Categoria e obrigatoria")
 
-    if category not in ALLOWED_TOPICS:
+    if resolved_category not in ALLOWED_TOPICS:
         raise HTTPException(status_code=400, detail="Tema invalido")
 
+    clean_title = title.strip()
+    clean_content = content.strip()
+    if len(clean_title) < 3:
+        raise HTTPException(status_code=400, detail="Titulo invalido")
+    if len(clean_content) < 3:
+        raise HTTPException(status_code=400, detail="Conteudo invalido")
+
+    resolved_image_url = await _resolve_post_image_url(image, image_url)
+
     post = models.Post(
-        title=payload.title.strip(),
-        content=payload.content.strip(),
-        topic=category,
-        image_url=payload.image_url,
+        title=clean_title,
+        content=clean_content,
+        topic=resolved_category,
+        image_url=resolved_image_url,
         author_id=current_user.id,
     )
     db.add(post)
@@ -122,9 +151,14 @@ def create_post(
 
 
 @router.put("/{post_id}", response_model=schemmas.PostOut)
-def update_post(
+async def update_post(
     post_id: int,
-    payload: schemmas.PostUpdate,
+    title: str | None = Form(default=None),
+    content: str | None = Form(default=None),
+    category: schemmas.TopicLiteral | None = Form(default=None),
+    topic: schemmas.TopicLiteral | None = Form(default=None),
+    image: UploadFile | None = File(default=None),
+    image_url: str | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -133,17 +167,23 @@ def update_post(
     if not post:
         raise HTTPException(status_code=404, detail="Post nao encontrado")
 
-    if payload.title is not None:
-        post.title = payload.title.strip()
-    if payload.content is not None:
-        post.content = payload.content.strip()
-    next_category = payload.category if payload.category is not None else payload.topic
+    if title is not None:
+        clean_title = title.strip()
+        if len(clean_title) < 3:
+            raise HTTPException(status_code=400, detail="Titulo invalido")
+        post.title = clean_title
+    if content is not None:
+        clean_content = content.strip()
+        if len(clean_content) < 3:
+            raise HTTPException(status_code=400, detail="Conteudo invalido")
+        post.content = clean_content
+    next_category = category if category is not None else topic
     if next_category is not None:
         if next_category not in ALLOWED_TOPICS:
             raise HTTPException(status_code=400, detail="Tema invalido")
         post.topic = next_category
-    if payload.image_url is not None:
-        post.image_url = payload.image_url
+    if image is not None or image_url is not None:
+        post.image_url = await _resolve_post_image_url(image, image_url)
 
     db.commit()
     db.refresh(post)

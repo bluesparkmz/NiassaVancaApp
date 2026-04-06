@@ -16,6 +16,7 @@ except ImportError:
 MEUCHAT_PREFIX = "meuchat"
 AVATARS_FOLDER = f"{MEUCHAT_PREFIX}/avatars"
 MESSAGES_FOLDER = f"{MEUCHAT_PREFIX}/messages"
+POSTS_FOLDER = f"{MEUCHAT_PREFIX}/posts"
 
 R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
 R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
