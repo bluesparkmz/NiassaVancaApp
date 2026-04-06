@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Comentario: usa DATABASE_URL do ambiente (PostgreSQL recomendado).
@@ -35,11 +35,26 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+def _ensure_users_columns() -> None:
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    user_columns = {col["name"] for col in inspector.get_columns("users")}
+    if "is_admin" not in user_columns:
+        with engine.begin() as connection:
+            if is_sqlite:
+                connection.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
+            else:
+                connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
+
+
 def init_db() -> None:
     # Comentario: garante schema minimo quando o banco sobe vazio.
     import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_users_columns()
 
 
 def get_db():

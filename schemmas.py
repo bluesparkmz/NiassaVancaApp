@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,7 @@ class UserUpdate(BaseModel):
 class UserOut(UserBase):
     id: int
     expo_push_token: Optional[str] = None
+    is_admin: bool = False
     created_at: datetime
 
     class Config:
@@ -143,3 +144,62 @@ class PushTokenIn(BaseModel):
     token: Optional[str] = None
     device_id: Optional[str] = None
     platform: Optional[str] = None
+
+
+TopicLiteral = Literal["natureza", "agricultura", "turismo"]
+
+
+class PostCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=180)
+    content: str = Field(min_length=3)
+    topic: TopicLiteral
+    image_url: Optional[str] = None
+
+
+class PostUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=3, max_length=180)
+    content: Optional[str] = Field(default=None, min_length=3)
+    topic: Optional[TopicLiteral] = None
+    image_url: Optional[str] = None
+
+
+class PostAuthor(BaseModel):
+    id: int
+    name: str
+    username: str
+    avatar: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PostOut(BaseModel):
+    id: int
+    title: str
+    content: str
+    topic: TopicLiteral
+    image_url: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    likes_count: int = 0
+    comments_count: int = 0
+    liked_by_me: bool = False
+    author: PostAuthor
+
+
+class PostCommentCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class PostCommentOut(BaseModel):
+    id: int
+    post_id: int
+    content: str
+    created_at: datetime
+    updated_at: datetime
+    user: PostAuthor
+
+
+class PostLikeToggleOut(BaseModel):
+    liked: bool
+    likes_count: int

@@ -23,6 +23,12 @@ GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 GOOGLE_DEFAULT_CLIENT_ID = "690521786732-6rh6blrhbu1ndqrpc2513mlv3mvrdacg.apps.googleusercontent.com"
 
 
+def _is_admin_username(username: str) -> bool:
+    raw = os.getenv("ADMIN_USERNAMES", "admin")
+    allowed = {item.strip().lower() for item in raw.split(",") if item.strip()}
+    return username.strip().lower() in allowed
+
+
 def _verify_google_id_token(id_token: str) -> dict:
     try:
         response = requests.get(
@@ -112,7 +118,12 @@ async def register(
         birth_date=parsed_birth_date,
         password=password,
     )
-    return user_controller.create_user(db, user_in)
+    created_user = user_controller.create_user(db, user_in)
+    if _is_admin_username(created_user.username):
+        created_user.is_admin = True
+        db.commit()
+        db.refresh(created_user)
+    return created_user
 
 
 @router.post("/login", response_model=schemmas.Token)
@@ -148,6 +159,7 @@ def login_google(payload: schemmas.GoogleLoginRequest, db: Session = Depends(get
             avatar=claims.get("picture"),
             username=username,
             password_hash=user_controller.get_password_hash(f"google_{google_sub}_{datetime.utcnow().timestamp()}"),
+            is_admin=_is_admin_username(username),
         )
         db.add(user)
         db.commit()

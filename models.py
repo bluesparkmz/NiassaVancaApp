@@ -18,6 +18,7 @@ class User(Base):
     birth_date = Column(Date, nullable=True)
     password_hash = Column(String(255), nullable=False)
     expo_push_token = Column(String(255), nullable=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
@@ -30,6 +31,9 @@ class User(Base):
     group_memberships = relationship("GroupMember", back_populates="user")
     message_reads = relationship("MessageRead", back_populates="user")
     push_devices = relationship("PushDevice", back_populates="user")
+    posts = relationship("Post", back_populates="author")
+    post_likes = relationship("PostLike", back_populates="user")
+    post_comments = relationship("PostComment", back_populates="user")
 
 
 class Group(Base):
@@ -120,3 +124,47 @@ class PushDevice(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="push_devices")
+
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(180), nullable=False)
+    content = Column(Text, nullable=False)
+    topic = Column(String(20), nullable=False, index=True)
+    image_url = Column(String(255), nullable=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    author = relationship("User", back_populates="posts")
+    likes = relationship("PostLike", back_populates="post", cascade="all, delete-orphan")
+    comments = relationship("PostComment", back_populates="post", cascade="all, delete-orphan")
+
+
+class PostLike(Base):
+    __tablename__ = "post_likes"
+    __table_args__ = (UniqueConstraint("post_id", "user_id", name="uq_post_like_user"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    post = relationship("Post", back_populates="likes")
+    user = relationship("User", back_populates="post_likes")
+
+
+class PostComment(Base):
+    __tablename__ = "post_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    post = relationship("Post", back_populates="comments")
+    user = relationship("User", back_populates="post_comments")

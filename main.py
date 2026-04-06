@@ -15,8 +15,7 @@ if str(app_dir) not in sys.path:
     sys.path.insert(0, str(app_dir))
 
 from routers.user import router as user_router  # noqa: E402
-from routers.messages import router as messages_router  # noqa: E402
-from routers.websoket_router import router as websoket_router  # noqa: E402
+from routers.posts import router as posts_router  # noqa: E402
 from database import init_db  # noqa: E402
 
 app = FastAPI(title="MeuChat")
@@ -42,8 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(user_router)
-app.include_router(messages_router)
-app.include_router(websoket_router)
+app.include_router(posts_router)
 
 
 @app.exception_handler(Exception)
