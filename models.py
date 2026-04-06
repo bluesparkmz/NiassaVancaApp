@@ -21,78 +21,10 @@ class User(Base):
     is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
-    received_messages = relationship(
-        "Message",
-        foreign_keys="Message.receiver_id",
-        back_populates="receiver",
-    )
-    groups_owned = relationship("Group", back_populates="owner")
-    group_memberships = relationship("GroupMember", back_populates="user")
-    message_reads = relationship("MessageRead", back_populates="user")
     push_devices = relationship("PushDevice", back_populates="user")
     posts = relationship("Post", back_populates="author")
     post_likes = relationship("PostLike", back_populates="user")
     post_comments = relationship("PostComment", back_populates="user")
-
-
-class Group(Base):
-    __tablename__ = "groups"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(120), nullable=False)
-    description = Column(String(255), nullable=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    owner = relationship("User", back_populates="groups_owned")
-    members = relationship("GroupMember", back_populates="group")
-    messages = relationship("Message", back_populates="group")
-
-
-class GroupMember(Base):
-    __tablename__ = "group_members"
-    __table_args__ = (UniqueConstraint("group_id", "user_id", name="uq_group_user"),)
-
-    id = Column(Integer, primary_key=True, index=True)
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    role = Column(String(30), default="member", nullable=False)
-    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    group = relationship("Group", back_populates="members")
-    user = relationship("User", back_populates="group_memberships")
-
-
-class Message(Base):
-    __tablename__ = "messages"
-
-    id = Column(Integer, primary_key=True, index=True)
-    content = Column(Text, nullable=False)
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    receiver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
-    media_url = Column(String(255), nullable=True)
-    media_type = Column(String(30), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")
-    receiver = relationship("User", foreign_keys=[receiver_id], back_populates="received_messages")
-    group = relationship("Group", back_populates="messages")
-    reads = relationship("MessageRead", back_populates="message")
-
-
-class MessageRead(Base):
-    __tablename__ = "message_reads"
-    __table_args__ = (UniqueConstraint("message_id", "user_id", name="uq_message_user"),)
-
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    read_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    message = relationship("Message", back_populates="reads")
-    user = relationship("User", back_populates="message_reads")
 
 
 class PasswordResetOTP(Base):
