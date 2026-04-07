@@ -5,6 +5,10 @@ import schemmas
 from auth import get_password_hash, verify_password
 
 
+def is_first_user(db: Session) -> bool:
+    return db.query(models.User.id).first() is None
+
+
 def create_user(db: Session, user_in: schemmas.UserCreate) -> models.User:
     user = models.User(
         name=user_in.name,
@@ -15,6 +19,7 @@ def create_user(db: Session, user_in: schemmas.UserCreate) -> models.User:
         sex=user_in.sex,
         birth_date=user_in.birth_date,
         password_hash=get_password_hash(user_in.password),
+        is_admin=is_first_user(db),
     )
     db.add(user)
     db.commit()

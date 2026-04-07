@@ -123,7 +123,7 @@ async def register(
         password=password,
     )
     created_user = user_controller.create_user(db, user_in)
-    if _is_admin_username(created_user.username):
+    if _is_admin_username(created_user.username) and not created_user.is_admin:
         created_user.is_admin = True
         db.commit()
         db.refresh(created_user)
@@ -158,12 +158,13 @@ def login_google(payload: schemmas.GoogleLoginRequest, db: Session = Depends(get
     user = db.query(models.User).filter(models.User.username == username).first()
 
     if not user:
+        should_be_admin = user_controller.is_first_user(db)
         user = models.User(
             name=(claims.get("name") or claims.get("email") or "Google User")[:120],
             avatar=claims.get("picture"),
             username=username,
             password_hash=user_controller.get_password_hash(f"google_{google_sub}_{datetime.utcnow().timestamp()}"),
-            is_admin=_is_admin_username(username),
+            is_admin=should_be_admin or _is_admin_username(username),
         )
         db.add(user)
         db.commit()
