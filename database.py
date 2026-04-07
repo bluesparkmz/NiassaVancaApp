@@ -41,12 +41,64 @@ def _ensure_users_columns() -> None:
         return
 
     user_columns = {col["name"] for col in inspector.get_columns("users")}
-    if "is_admin" not in user_columns:
-        with engine.begin() as connection:
-            if is_sqlite:
-                connection.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
-            else:
-                connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
+    statements: list[str] = []
+
+    def add_column(column_name: str, sqlite_sql: str, postgres_sql: str) -> None:
+        if column_name not in user_columns:
+            statements.append(sqlite_sql if is_sqlite else postgres_sql)
+
+    add_column(
+        "avatar",
+        "ALTER TABLE users ADD COLUMN avatar VARCHAR(255)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(255)",
+    )
+    add_column(
+        "email",
+        "ALTER TABLE users ADD COLUMN email VARCHAR(120)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(120)",
+    )
+    add_column(
+        "phone",
+        "ALTER TABLE users ADD COLUMN phone VARCHAR(30)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30)",
+    )
+    add_column(
+        "sex",
+        "ALTER TABLE users ADD COLUMN sex VARCHAR(20)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS sex VARCHAR(20)",
+    )
+    add_column(
+        "birth_date",
+        "ALTER TABLE users ADD COLUMN birth_date DATE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date DATE",
+    )
+    add_column(
+        "expo_push_token",
+        "ALTER TABLE users ADD COLUMN expo_push_token VARCHAR(255)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS expo_push_token VARCHAR(255)",
+    )
+    add_column(
+        "is_admin",
+        "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE",
+    )
+    add_column(
+        "created_at",
+        "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
+    )
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+        if not is_sqlite:
+            connection.execute(
+                text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email)")
+            )
+            connection.execute(
+                text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_phone ON users (phone)")
+            )
 
 
 def init_db() -> None:
