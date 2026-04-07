@@ -9,6 +9,7 @@ def create_user(db: Session, user_in: schemmas.UserCreate) -> models.User:
     user = models.User(
         name=user_in.name,
         avatar=user_in.avatar,
+        email=user_in.email,
         username=user_in.username,
         phone=user_in.phone,
         sex=user_in.sex,
@@ -22,7 +23,11 @@ def create_user(db: Session, user_in: schemmas.UserCreate) -> models.User:
 
 
 def authenticate_user(db: Session, username: str, password: str) -> models.User | None:
-    user = db.query(models.User).filter(models.User.username == username).first()
+    user = (
+        db.query(models.User)
+        .filter((models.User.username == username) | (models.User.email == username))
+        .first()
+    )
     if not user:
         return None
     if not verify_password(password, user.password_hash):

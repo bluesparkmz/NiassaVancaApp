@@ -12,6 +12,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(120), nullable=False)
     avatar = Column(String(255), nullable=True)
+    email = Column(String(120), unique=True, index=True, nullable=False)
     username = Column(String(50), unique=True, index=True, nullable=False)
     phone = Column(String(30), unique=True, index=True, nullable=True)
     sex = Column(String(20), nullable=True)

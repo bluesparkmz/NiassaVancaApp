@@ -76,6 +76,7 @@ def _verify_google_id_token(id_token: str) -> dict:
 @router.post("/register", response_model=schemmas.UserOut, status_code=status.HTTP_201_CREATED)
 async def register(
     name: str = Form(...),
+    email: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
     phone: str | None = Form(None),
@@ -91,6 +92,8 @@ async def register(
     # Comentario: validar unicidade de username e telefone.
     if db.query(models.User).filter(models.User.username == username).first():
         raise HTTPException(status_code=400, detail="Username ja existe")
+    if db.query(models.User).filter(models.User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email ja existe")
     if phone and db.query(models.User).filter(models.User.phone == phone).first():
         raise HTTPException(status_code=400, detail="Telefone ja existe")
 
@@ -112,6 +115,7 @@ async def register(
     user_in = schemmas.UserCreate(
         name=name,
         avatar=avatar_path,
+        email=email,
         username=username,
         phone=phone,
         sex=sex,

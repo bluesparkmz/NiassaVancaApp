@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class UserBase(BaseModel):
     name: str
     avatar: Optional[str] = None
+    email: str
     username: str
     phone: Optional[str] = None
     sex: Optional[str] = None
