@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 cors_origins = os.getenv(
     "CORS_ORIGINS",
-    "https://niassaavanca.bluesparkmz.com",
+    "https://niassa.co.mz",
 )
 allow_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 cors_origin_regex = os.getenv(
