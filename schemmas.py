@@ -227,6 +227,30 @@ class FavoriteCollectionOut(BaseModel):
     products: List["MarketProductOut"] = []
 
 
+class CompanySocialState(BaseModel):
+    company_id: int
+    likes_count: int
+    followers_count: int
+    comments_count: int
+    liked_by_me: bool = False
+    following_by_me: bool = False
+
+
+class CompanyCommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class CompanyCommentOut(BaseModel):
+    id: int
+    company_id: int
+    user_id: int
+    user_name: str
+    user_avatar_url: Optional[str] = None
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class LeadCreate(BaseModel):
     lead_type: str = Field(default="contact")
     customer_name: str = Field(..., min_length=2, max_length=180)

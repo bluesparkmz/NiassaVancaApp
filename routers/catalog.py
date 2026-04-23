@@ -140,6 +140,56 @@ def _company_summary(company: models.Company) -> schemmas.CompanySummary:
     )
 
 
+def _comment_out(item: models.CompanyComment) -> schemmas.CompanyCommentOut:
+    return schemmas.CompanyCommentOut(
+        id=item.id,
+        company_id=item.company_id,
+        user_id=item.user_id,
+        user_name=item.user.full_name,
+        user_avatar_url=item.user.avatar_url,
+        content=item.content,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+def _company_social_state(
+    db: Session,
+    company_id: int,
+    current_user: models.User | None = None,
+) -> schemmas.CompanySocialState:
+    likes_count = db.query(models.CompanyLike).filter(models.CompanyLike.company_id == company_id).count()
+    followers_count = db.query(models.CompanyFollow).filter(models.CompanyFollow.company_id == company_id).count()
+    comments_count = (
+        db.query(models.CompanyComment)
+        .filter(models.CompanyComment.company_id == company_id, models.CompanyComment.is_visible == True)
+        .count()
+    )
+    liked_by_me = False
+    following_by_me = False
+    if current_user:
+        liked_by_me = (
+            db.query(models.CompanyLike)
+            .filter(models.CompanyLike.company_id == company_id, models.CompanyLike.user_id == current_user.id)
+            .first()
+            is not None
+        )
+        following_by_me = (
+            db.query(models.CompanyFollow)
+            .filter(models.CompanyFollow.company_id == company_id, models.CompanyFollow.user_id == current_user.id)
+            .first()
+            is not None
+        )
+    return schemmas.CompanySocialState(
+        company_id=company_id,
+        likes_count=likes_count,
+        followers_count=followers_count,
+        comments_count=comments_count,
+        liked_by_me=liked_by_me,
+        following_by_me=following_by_me,
+    )
+
+
 @router.get("/home", response_model=schemmas.HomeResponse)
 def home(db: Session = Depends(get_db)):
     lodgings = (
@@ -450,6 +500,108 @@ def list_my_favorite_collection(
             for item in products
         ],
     )
+
+
+@router.get("/companies/{company_id}/social", response_model=schemmas.CompanySocialState)
+def get_company_social_state(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User | None = Depends(get_current_user_optional),
+):
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    return _company_social_state(db, company_id, current_user)
+
+
+@router.post("/companies/{company_id}/like", response_model=schemmas.CompanySocialState)
+def toggle_company_like(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    existing = (
+        db.query(models.CompanyLike)
+        .filter(models.CompanyLike.company_id == company_id, models.CompanyLike.user_id == current_user.id)
+        .first()
+    )
+    if existing:
+        db.delete(existing)
+    else:
+        db.add(models.CompanyLike(company_id=company_id, user_id=current_user.id))
+    db.commit()
+    if company.restaurant_profile:
+        company.restaurant_profile.likes_count = db.query(models.CompanyLike).filter(models.CompanyLike.company_id == company_id).count()
+        db.commit()
+    return _company_social_state(db, company_id, current_user)
+
+
+@router.post("/companies/{company_id}/follow", response_model=schemmas.CompanySocialState)
+def toggle_company_follow(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    existing = (
+        db.query(models.CompanyFollow)
+        .filter(models.CompanyFollow.company_id == company_id, models.CompanyFollow.user_id == current_user.id)
+        .first()
+    )
+    if existing:
+        db.delete(existing)
+    else:
+        db.add(models.CompanyFollow(company_id=company_id, user_id=current_user.id))
+    db.commit()
+    return _company_social_state(db, company_id, current_user)
+
+
+@router.get("/companies/{company_id}/comments", response_model=list[schemmas.CompanyCommentOut])
+def list_company_comments(company_id: int, db: Session = Depends(get_db)):
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    items = (
+        db.query(models.CompanyComment)
+        .options(joinedload(models.CompanyComment.user))
+        .filter(models.CompanyComment.company_id == company_id, models.CompanyComment.is_visible == True)
+        .order_by(models.CompanyComment.created_at.desc())
+        .all()
+    )
+    return [_comment_out(item) for item in items]
+
+
+@router.post("/companies/{company_id}/comments", response_model=schemmas.CompanyCommentOut)
+def create_company_comment(
+    company_id: int,
+    payload: schemmas.CompanyCommentCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    item = models.CompanyComment(
+        company_id=company_id,
+        user_id=current_user.id,
+        content=payload.content.strip(),
+        is_visible=True,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    item = (
+        db.query(models.CompanyComment)
+        .options(joinedload(models.CompanyComment.user))
+        .filter(models.CompanyComment.id == item.id)
+        .first()
+    )
+    return _comment_out(item)
 
 
 @router.post("/favorites/toggle", response_model=schemmas.FavoriteOut | dict)

@@ -99,6 +99,9 @@ class User(Base):
     favorites = relationship("Favorite", back_populates="user", cascade="all, delete-orphan")
     leads = relationship("PartnerLead", back_populates="requester")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    company_likes = relationship("CompanyLike", back_populates="user", cascade="all, delete-orphan")
+    company_follows = relationship("CompanyFollow", back_populates="user", cascade="all, delete-orphan")
+    company_comments = relationship("CompanyComment", back_populates="user", cascade="all, delete-orphan")
 
 
 class Company(Base):
@@ -144,6 +147,9 @@ class Company(Base):
     favorites = relationship("Favorite", back_populates="company")
     leads = relationship("PartnerLead", back_populates="company", cascade="all, delete-orphan")
     selo_requests = relationship("SeloNiassaRequest", back_populates="company", cascade="all, delete-orphan")
+    likes = relationship("CompanyLike", back_populates="company", cascade="all, delete-orphan")
+    follows = relationship("CompanyFollow", back_populates="company", cascade="all, delete-orphan")
+    comments = relationship("CompanyComment", back_populates="company", cascade="all, delete-orphan")
 
 
 class LodgingProfile(Base):
@@ -276,6 +282,51 @@ class Favorite(Base):
     user = relationship("User", back_populates="favorites")
     company = relationship("Company", back_populates="favorites")
     product = relationship("ProducerProduct")
+
+
+class CompanyLike(Base):
+    __tablename__ = "company_likes"
+    __table_args__ = (
+        UniqueConstraint("user_id", "company_id", name="uq_company_like_user_company"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="company_likes")
+    company = relationship("Company", back_populates="likes")
+
+
+class CompanyFollow(Base):
+    __tablename__ = "company_follows"
+    __table_args__ = (
+        UniqueConstraint("user_id", "company_id", name="uq_company_follow_user_company"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="company_follows")
+    company = relationship("Company", back_populates="follows")
+
+
+class CompanyComment(Base):
+    __tablename__ = "company_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    is_visible = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="company_comments")
+    company = relationship("Company", back_populates="comments")
 
 
 class PartnerLead(Base):
