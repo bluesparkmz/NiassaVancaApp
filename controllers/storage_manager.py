@@ -17,6 +17,8 @@ APP_PREFIX = "niassaavanca"
 AVATARS_FOLDER = f"{APP_PREFIX}/avatars"
 POSTS_FOLDER = f"{APP_PREFIX}/posts"
 COMPANIES_FOLDER = f"{APP_PREFIX}/companies"
+PRODUCTS_FOLDER = f"{APP_PREFIX}/products"
+SERVICES_FOLDER = f"{APP_PREFIX}/services"
 
 R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
 R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")

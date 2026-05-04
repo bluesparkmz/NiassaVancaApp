@@ -198,7 +198,7 @@ def home(db: Session = Depends(get_db)):
         .options(joinedload(models.LodgingProfile.company))
         .filter(
             models.LodgingProfile.active == True,
-            models.Company.status == models.CompanyStatus.APPROVED,
+            # models.Company.status == models.CompanyStatus.APPROVED,
         )
         .order_by(models.Company.is_featured.desc(), models.LodgingProfile.rating.desc())
         .limit(8)
@@ -210,7 +210,7 @@ def home(db: Session = Depends(get_db)):
         .options(joinedload(models.ExperienceProfile.company))
         .filter(
             models.ExperienceProfile.active == True,
-            models.Company.status == models.CompanyStatus.APPROVED,
+            # models.Company.status == models.CompanyStatus.APPROVED,
         )
         .order_by(models.Company.is_featured.desc(), models.Company.created_at.desc())
         .limit(6)
@@ -222,7 +222,7 @@ def home(db: Session = Depends(get_db)):
         .options(joinedload(models.RestaurantProfile.company))
         .filter(
             models.RestaurantProfile.active == True,
-            models.Company.status == models.CompanyStatus.APPROVED,
+            # models.Company.status == models.CompanyStatus.APPROVED,
         )
         .order_by(models.Company.is_featured.desc(), models.RestaurantProfile.rating.desc())
         .limit(6)
@@ -234,7 +234,7 @@ def home(db: Session = Depends(get_db)):
         .options(joinedload(models.ProducerProfile.company))
         .filter(
             models.ProducerProfile.active == True,
-            models.Company.status == models.CompanyStatus.APPROVED,
+            # models.Company.status == models.CompanyStatus.APPROVED,
         )
         .order_by(models.Company.is_featured.desc(), models.Company.is_verified.desc())
         .limit(8)
@@ -254,7 +254,7 @@ def list_lodgings(db: Session = Depends(get_db)):
         db.query(models.LodgingProfile)
         .join(models.Company)
         .options(joinedload(models.LodgingProfile.company))
-        .filter(models.LodgingProfile.active == True, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.LodgingProfile.active == True)
         .order_by(models.Company.is_featured.desc(), models.LodgingProfile.rating.desc())
         .all()
     )
@@ -267,7 +267,7 @@ def get_lodging(slug: str, db: Session = Depends(get_db)):
         db.query(models.LodgingProfile)
         .join(models.Company)
         .options(joinedload(models.LodgingProfile.company))
-        .filter(models.Company.slug == slug, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.Company.slug == slug)
         .first()
     )
     if not item:
@@ -288,7 +288,7 @@ def list_experiences(db: Session = Depends(get_db)):
         db.query(models.ExperienceProfile)
         .join(models.Company)
         .options(joinedload(models.ExperienceProfile.company))
-        .filter(models.ExperienceProfile.active == True, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.ExperienceProfile.active == True)
         .order_by(models.Company.is_featured.desc(), models.Company.created_at.desc())
         .all()
     )
@@ -301,7 +301,7 @@ def get_experience(slug: str, db: Session = Depends(get_db)):
         db.query(models.ExperienceProfile)
         .join(models.Company)
         .options(joinedload(models.ExperienceProfile.company))
-        .filter(models.Company.slug == slug, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.Company.slug == slug)
         .first()
     )
     if not item:
@@ -317,7 +317,7 @@ def list_restaurants(db: Session = Depends(get_db)):
         db.query(models.RestaurantProfile)
         .join(models.Company)
         .options(joinedload(models.RestaurantProfile.company))
-        .filter(models.RestaurantProfile.active == True, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.RestaurantProfile.active == True)
         .order_by(models.Company.is_featured.desc(), models.RestaurantProfile.rating.desc())
         .all()
     )
@@ -330,7 +330,7 @@ def get_restaurant(slug: str, db: Session = Depends(get_db)):
         db.query(models.RestaurantProfile)
         .join(models.Company)
         .options(joinedload(models.RestaurantProfile.company))
-        .filter(models.Company.slug == slug, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.Company.slug == slug)
         .first()
     )
     if not item:
@@ -351,7 +351,7 @@ def list_producers(
         db.query(models.ProducerProfile)
         .join(models.Company)
         .options(joinedload(models.ProducerProfile.company))
-        .filter(models.ProducerProfile.active == True, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.ProducerProfile.active == True)
     )
     if area and area.lower() != "todas":
         query = query.filter(models.ProducerProfile.area.ilike(f"%{area.strip()}%"))
@@ -374,7 +374,7 @@ def get_producer(slug: str, db: Session = Depends(get_db)):
         db.query(models.ProducerProfile)
         .join(models.Company)
         .options(joinedload(models.ProducerProfile.company), joinedload(models.ProducerProfile.products))
-        .filter(models.Company.slug == slug, models.Company.status == models.CompanyStatus.APPROVED)
+        .filter(models.Company.slug == slug)
         .first()
     )
     if not item:
@@ -418,7 +418,7 @@ def list_market_products(
         .filter(
             models.ProducerProduct.active == True,
             models.ProducerProfile.active == True,
-            models.Company.status == models.CompanyStatus.APPROVED,
+            # models.Company.status == models.CompanyStatus.APPROVED,
         )
     )
     if area and area.lower() != "todas":

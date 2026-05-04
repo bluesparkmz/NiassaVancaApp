@@ -434,6 +434,53 @@ async def upload_company_cover(
     return {"url": company.cover_url}
 
 
+@router.post("/{company_id}/products/{product_id}/upload-image")
+async def upload_product_image(
+    company_id: int,
+    product_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.producer_profile:
+        raise HTTPException(status_code=400, detail="Esta empresa nao suporta produtos")
+    
+    product = next((p for p in company.producer_profile.products if p.id == product_id), None)
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+        
+    product.image_url = await storage_manager.upload_file(
+        file,
+        COMPANIES_FOLDER, # Using COMPANIES_FOLDER for now as it's already set up or I can use the new ones
+        allowed_mime_prefixes=("image/",),
+    )
+    db.commit()
+    return {"url": product.image_url}
+
+
+@router.post("/{company_id}/services/{service_id}/upload-image")
+async def upload_service_image(
+    company_id: int,
+    service_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    service = next((s for s in company.services if s.id == service_id), None)
+    if not service:
+        raise HTTPException(status_code=404, detail="Servico nao encontrado")
+        
+    service.image_url = await storage_manager.upload_file(
+        file,
+        COMPANIES_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    db.commit()
+    return {"url": service.image_url}
+
+
 @router.get("/{company_id}/services", response_model=list[schemmas.CompanyServiceOut])
 def list_company_services(
     company_id: int,
