@@ -23,14 +23,42 @@ from routers.notifications import router as notifications_router  # noqa: E402
 logger = logging.getLogger(__name__)
 app = FastAPI(title="Niassa Avança API", version="1.0.0")
 
+DEFAULT_CORS_ORIGINS = ",".join(
+    [
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080",
+        "https://niassa.co.mz",
+        "https://www.niassa.co.mz",
+        "https://api.niassa.co.mz",
+    ]
+)
+
+
+def _normalize_cors_origin(origin: str) -> str:
+    value = origin.strip().rstrip("/")
+    if not value:
+        return ""
+    if value.startswith("//"):
+        return f"https:{value}".rstrip("/")
+    if "://" not in value:
+        return f"https://{value}"
+    return value
+
+
 cors_origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,https://niassa.co.mz,https://www.niassa.co.mz,https://api.niassa.co.mz",
+    DEFAULT_CORS_ORIGINS,
 )
-allow_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+allow_origins = [
+    normalized
+    for normalized in (_normalize_cors_origin(origin) for origin in cors_origins.split(","))
+    if normalized
+]
 allow_origin_regex = os.getenv(
     "CORS_ORIGIN_REGEX",
-    r"^https://([a-zA-Z0-9-]+\.)?(niassa\.co\.mz|vercel\.app)$",
+    r"^https?://([a-zA-Z0-9-]+\.)*(niassa\.co\.mz|vercel\.app)$",
 )
 
 app.add_middleware(
