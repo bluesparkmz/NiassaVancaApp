@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
 import models
@@ -14,6 +14,7 @@ RESTAURANT_MENU_FOLDER = f"{COMPANIES_FOLDER}/restaurant-menu"
 RESTAURANT_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/restaurant-gallery"
 LODGING_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/lodging-gallery"
 LODGING_ROOMS_FOLDER = f"{COMPANIES_FOLDER}/lodging-rooms"
+PRODUCT_IMAGES_FOLDER = f"{COMPANIES_FOLDER}/products"
 from database import get_db
 
 
@@ -979,6 +980,42 @@ def create_company_product(
         image_url=payload.image_url,
         category=payload.category,
         short_description=payload.short_description,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _product_out(item)
+
+
+@router.post("/{company_id}/products/create-with-image", response_model=schemmas.ProducerProductOut)
+async def create_company_product_with_image(
+    company_id: int,
+    name: str = Form(...),
+    price_label: str | None = Form(default=None),
+    category: str | None = Form(default=None),
+    short_description: str | None = Form(default=None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    profile = _ensure_company_producer_profile(db, company)
+
+    url = await storage_manager.upload_file(
+        file,
+        PRODUCT_IMAGES_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+
+    item = models.ProducerProduct(
+        producer_id=profile.id,
+        name=name.strip(),
+        slug=_ensure_unique_product_slug(db, _slugify(name)),
+        price_label=price_label,
+        price_amount=None,
+        image_url=url,
+        category=category,
+        short_description=short_description,
     )
     db.add(item)
     db.commit()
