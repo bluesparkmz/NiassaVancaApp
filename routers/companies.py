@@ -12,6 +12,8 @@ from controllers.storage_manager import COMPANIES_FOLDER, storage_manager
 
 RESTAURANT_MENU_FOLDER = f"{COMPANIES_FOLDER}/restaurant-menu"
 RESTAURANT_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/restaurant-gallery"
+LODGING_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/lodging-gallery"
+LODGING_ROOMS_FOLDER = f"{COMPANIES_FOLDER}/lodging-rooms"
 from database import get_db
 
 
@@ -834,6 +836,53 @@ async def upload_restaurant_gallery_image(
     company.restaurant_profile.gallery_images = gallery
     db.commit()
     return {"url": url, "gallery_images": gallery}
+
+
+@router.post("/{company_id}/lodging-gallery/upload-image")
+async def upload_lodging_gallery_image(
+    company_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa sem perfil de alojamento")
+    url = await storage_manager.upload_file(
+        file,
+        LODGING_GALLERY_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    gallery = list(company.lodging_profile.gallery_images or [])
+    gallery.append(url)
+    company.lodging_profile.gallery_images = gallery
+    db.commit()
+    return {"url": url, "gallery_images": gallery}
+
+
+@router.post("/{company_id}/rooms/{room_id}/upload-image")
+async def upload_lodging_room_image(
+    company_id: int,
+    room_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa sem perfil de alojamento")
+    room = next((item for item in company.lodging_profile.rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Quarto nao encontrado")
+    url = await storage_manager.upload_file(
+        file,
+        LODGING_ROOMS_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    room.images = [url]
+    db.commit()
+    db.refresh(room)
+    return {"url": url, "images": list(room.images or [])}
 
 
 @router.post("/{company_id}/services", response_model=schemmas.CompanyServiceOut)
