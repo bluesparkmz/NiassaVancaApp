@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 import models
@@ -78,7 +78,7 @@ def _get_or_create_owner_user(
 
 
 class AdminOwnerIn(BaseModel):
-    email: EmailStr
+    email: str = Field(..., max_length=140)
     full_name: str | None = Field(default=None, max_length=140)
     phone: str | None = Field(default=None, max_length=30)
     password: str | None = Field(default=None, min_length=4)
