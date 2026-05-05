@@ -15,6 +15,7 @@ if str(app_dir) not in sys.path:
 
 from database import init_db  # noqa: E402
 from routers.ai import router as ai_router  # noqa: E402
+from routers.admin import router as admin_router  # noqa: E402
 from routers.auth import router as auth_router  # noqa: E402
 from routers.catalog import router as catalog_router  # noqa: E402
 from routers.companies import router as companies_router  # noqa: E402
@@ -73,6 +74,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(companies_router)
 app.include_router(catalog_router)
 app.include_router(notifications_router)
@@ -94,7 +96,44 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
+def _ensure_admin_user() -> None:
+    from auth import get_password_hash
+    from database import SessionLocal
+    import models
+
+    ADMIN_EMAIL = "djoaquimnamueto@gmail.com"
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.email == ADMIN_EMAIL).first()
+        if not user:
+            user = models.User(
+                full_name="Admin",
+                name="Admin",
+                username="admin",
+                email=ADMIN_EMAIL,
+                phone=None,
+                password_hash=get_password_hash("1234"),
+                role=models.UserRole.ADMIN,
+                is_admin=True,
+                is_active=True,
+            )
+            db.add(user)
+            db.commit()
+            logger.info("Created admin user: %s", ADMIN_EMAIL)
+        else:
+            if user.role != models.UserRole.ADMIN or not user.is_admin:
+                user.role = models.UserRole.ADMIN
+                user.is_admin = True
+                db.commit()
+                logger.info("Updated user to admin: %s", ADMIN_EMAIL)
+    except Exception as e:
+        logger.warning("Could not ensure admin user: %s", e)
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 def startup() -> None:
     init_db()
+    _ensure_admin_user()
 
