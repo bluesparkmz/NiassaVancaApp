@@ -33,6 +33,7 @@ DEFAULT_CORS_ORIGINS = ",".join(
         "https://niassa.co.mz",
         "https://www.niassa.co.mz",
         "https://api.niassa.co.mz",
+        "https://lovable.dev"
     ]
 )
 
