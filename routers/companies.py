@@ -52,6 +52,24 @@ def _company_out(company: models.Company) -> schemmas.CompanyOut:
     )
 
 
+def _company_capabilities_out(company: models.Company) -> schemmas.CompanyCapabilitiesOut:
+    company_type = company.company_type.value if hasattr(company.company_type, "value") else str(company.company_type)
+    supports_lodging = company_type in models.LODGING_COMPANY_TYPES
+    supports_restaurant_menu = company_type in models.RESTAURANT_COMPANY_TYPES
+    supports_products = company_type in models.PRODUCT_COMPANY_TYPES
+    supports_experiences = company_type in models.EXPERIENCE_COMPANY_TYPES
+    return schemmas.CompanyCapabilitiesOut(
+        company_id=company.id,
+        company_type=company_type,
+        supports_lodging=supports_lodging,
+        supports_rooms=supports_lodging,
+        supports_restaurant_menu=supports_restaurant_menu,
+        supports_products=supports_products,
+        supports_experiences=supports_experiences,
+        supports_services=True,
+    )
+
+
 def _service_out(item: models.CompanyService) -> schemmas.CompanyServiceOut:
     return schemmas.CompanyServiceOut(
         id=item.id,
@@ -196,6 +214,47 @@ def _ensure_company_producer_profile(db: Session, company: models.Company) -> mo
     db.flush()
     company.producer_profile = profile
     return profile
+
+
+def _ensure_company_profiles_for_type(db: Session, company: models.Company, company_type: str) -> None:
+    if company_type in models.LODGING_COMPANY_TYPES and not company.lodging_profile:
+        db.add(
+            models.LodgingProfile(
+                company_id=company.id,
+                stay_type="Hotel" if company_type == models.CompanyType.HOTEL.value else "Lodge",
+                price_per_night=0,
+                currency="EUR",
+                amenities=[],
+                gallery_images=[],
+                beach_access=False,
+            )
+        )
+
+    if company_type in models.EXPERIENCE_COMPANY_TYPES and not company.experience_profile:
+        db.add(
+            models.ExperienceProfile(
+                company_id=company.id,
+                host_name=company.name,
+                schedule_text=None,
+                badge=None,
+                category_label=company.category or "Experiência",
+            )
+        )
+
+    if company_type in models.RESTAURANT_COMPANY_TYPES and not company.restaurant_profile:
+        db.add(
+            models.RestaurantProfile(
+                company_id=company.id,
+                cuisine=None,
+                signature=None,
+                rating=None,
+                menu_items=[],
+                gallery_images=[],
+            )
+        )
+
+    if company_type in models.PRODUCT_COMPANY_TYPES and not company.producer_profile:
+        _ensure_company_producer_profile(db, company)
 
 
 def _create_company_profile(db: Session, company: models.Company, payload: schemmas.CompanyCreate) -> None:
@@ -349,6 +408,30 @@ def get_my_company(
     return _company_out(company)
 
 
+@router.get("/me/capabilities", response_model=list[schemmas.CompanyCapabilitiesOut])
+def list_my_company_capabilities(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    companies = (
+        db.query(models.Company)
+        .filter(models.Company.owner_user_id == current_user.id)
+        .order_by(models.Company.created_at.desc())
+        .all()
+    )
+    return [_company_capabilities_out(company) for company in companies]
+
+
+@router.get("/{company_id}/capabilities", response_model=schemmas.CompanyCapabilitiesOut)
+def get_company_capabilities(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    return _company_capabilities_out(company)
+
+
 @router.put("/{company_id}", response_model=schemmas.CompanyOut)
 def update_my_company(
     company_id: int,
@@ -358,12 +441,16 @@ def update_my_company(
 ):
     company = _owned_company(db, company_id, current_user)
     data = payload.model_dump(exclude_unset=True)
+    new_company_type = data.get("company_type")
     for key, value in data.items():
         if key == "status" and not _is_admin(current_user):
             continue
         if key == "is_featured" and not _is_admin(current_user):
             continue
         setattr(company, key, value)
+    if new_company_type is not None:
+        company_type_value = new_company_type.value if hasattr(new_company_type, "value") else str(new_company_type)
+        _ensure_company_profiles_for_type(db, company, company_type_value)
     db.commit()
     db.refresh(company)
     return _company_out(company)

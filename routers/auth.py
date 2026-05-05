@@ -167,6 +167,24 @@ def _build_company_summary(company: models.Company) -> schemmas.CompanySummary:
     )
 
 
+def _build_company_capabilities(company: models.Company) -> schemmas.CompanyCapabilitiesOut:
+    company_type = company.company_type.value if hasattr(company.company_type, "value") else str(company.company_type)
+    supports_lodging = company_type in models.LODGING_COMPANY_TYPES
+    supports_restaurant_menu = company_type in models.RESTAURANT_COMPANY_TYPES
+    supports_products = company_type in models.PRODUCT_COMPANY_TYPES
+    supports_experiences = company_type in models.EXPERIENCE_COMPANY_TYPES
+    return schemmas.CompanyCapabilitiesOut(
+        company_id=company.id,
+        company_type=company_type,
+        supports_lodging=supports_lodging,
+        supports_rooms=supports_lodging,
+        supports_restaurant_menu=supports_restaurant_menu,
+        supports_products=supports_products,
+        supports_experiences=supports_experiences,
+        supports_services=True,
+    )
+
+
 def _build_auth_me(user: models.User) -> schemmas.AuthMeOut:
     return schemmas.AuthMeOut(
         user=schemmas.UserOut.model_validate(user),
@@ -419,9 +437,14 @@ def get_profile_summary(
         _build_company_summary(company)
         for company in db.query(models.Company).filter(models.Company.owner_user_id == current_user.id).all()
     ]
+    role_value = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    capabilities = [_build_company_capabilities(company) for company in companies]
     return schemmas.ProfileSummaryOut(
         user=schemmas.UserOut.model_validate(current_user),
         companies=companies,
+        companies_capabilities=capabilities,
+        companies_count=len(companies),
+        is_company_user=(len(companies) > 0 or role_value in {models.UserRole.PARTNER.value, models.UserRole.ADMIN.value}),
         favorites_count=favorites_count,
         bookings_count=bookings_count,
     )
@@ -444,7 +467,13 @@ def list_company_types():
         ),
         schemmas.CompanyTypeOption(
             code=models.CompanyType.RESTAURANT_RESIDENCE.value,
-            label="Restaurante e residências",
+            label="Restaurante e residências (hotel)",
+            supports_products=False,
+            supports_services=True,
+        ),
+        schemmas.CompanyTypeOption(
+            code=models.CompanyType.HOTEL.value,
+            label="Hotel",
             supports_products=False,
             supports_services=True,
         ),

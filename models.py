@@ -32,6 +32,7 @@ class CompanyType(str, enum.Enum):
     AGRO_LIVESTOCK = "agro_livestock"
     RESTAURANT_RESIDENCE = "restaurant_residence"
     TRAVEL_AGENCY = "travel_agency"
+    HOTEL = "hotel"
 
     # Legacy types kept for backward compatibility
     HOSPITALITY = "hospitality"
@@ -45,6 +46,7 @@ class CompanyType(str, enum.Enum):
 
 
 LODGING_COMPANY_TYPES = {
+    CompanyType.HOTEL.value,
     CompanyType.HOSPITALITY.value,
     CompanyType.LODGING.value,
     CompanyType.BEACH.value,
@@ -57,6 +59,7 @@ EXPERIENCE_COMPANY_TYPES = {
 }
 
 RESTAURANT_COMPANY_TYPES = {
+    CompanyType.HOTEL.value,
     CompanyType.RESTAURANT.value,
     CompanyType.RESTAURANT_RESIDENCE.value,
 }

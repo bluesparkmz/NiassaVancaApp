@@ -153,6 +153,9 @@ class CompanyCreate(BaseModel):
 
         normalized = value.strip().lower()
         aliases = {
+            "hotel": models.CompanyType.HOTEL,
+            "hoteis": models.CompanyType.HOTEL,
+            "hotéis": models.CompanyType.HOTEL,
             "agencia de viagens": models.CompanyType.TRAVEL_AGENCY,
             "agência de viagens": models.CompanyType.TRAVEL_AGENCY,
             "agencia viagens": models.CompanyType.TRAVEL_AGENCY,
@@ -247,8 +250,14 @@ class CompanyUpdate(BaseModel):
     facebook: Optional[str] = Field(default=None, max_length=255)
     logo_url: Optional[str] = None
     cover_url: Optional[str] = None
+    company_type: Optional[models.CompanyType] = None
     status: Optional[str] = None
     is_featured: Optional[bool] = None
+
+    @field_validator("company_type", mode="before")
+    @classmethod
+    def normalize_company_type(cls, value: object) -> object:
+        return CompanyCreate.normalize_company_type(value)
 
 
 class LodgingProfileUpdate(BaseModel):
@@ -334,6 +343,17 @@ class CompanyTypeOption(BaseModel):
     code: str
     label: str
     supports_products: bool = False
+    supports_services: bool = True
+
+
+class CompanyCapabilitiesOut(BaseModel):
+    company_id: int
+    company_type: str
+    supports_lodging: bool = False
+    supports_rooms: bool = False
+    supports_restaurant_menu: bool = False
+    supports_products: bool = False
+    supports_experiences: bool = False
     supports_services: bool = True
 
 
@@ -661,6 +681,9 @@ class FeedItemOut(BaseModel):
 class ProfileSummaryOut(BaseModel):
     user: UserOut
     companies: List[CompanySummary] = []
+    companies_capabilities: List[CompanyCapabilitiesOut] = []
+    companies_count: int = 0
+    is_company_user: bool = False
     favorites_count: int = 0
     bookings_count: int = 0
 

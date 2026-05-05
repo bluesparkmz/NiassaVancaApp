@@ -469,6 +469,8 @@ def get_producer(slug: str, db: Session = Depends(get_db)):
 def list_market_products(
     area: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    categoria: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: models.User | None = Depends(get_current_user_optional),
 ):
@@ -495,6 +497,9 @@ def list_market_products(
                 models.Company.description.ilike(term),
             )
         )
+    selected_category = (category or categoria or "").strip()
+    if selected_category and selected_category.lower() != "todas":
+        query = query.filter(models.ProducerProduct.category.ilike(f"%{selected_category}%"))
     items = query.order_by(models.Company.is_verified.desc(), models.Company.is_featured.desc()).all()
     output: list[schemmas.MarketProductOut] = []
     for item in items:
@@ -554,6 +559,32 @@ def get_market_product(
         liked_by_me=social.liked_by_me,
         description=item.short_description,
     )
+
+
+@router.get("/market/categories", response_model=list[schemmas.CategoryGroupOut])
+def list_market_categories(db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.ProducerProduct.category, func.count(models.ProducerProduct.id))
+        .join(models.ProducerProfile)
+        .join(models.Company)
+        .filter(
+            models.ProducerProduct.active == True,
+            models.ProducerProfile.active == True,
+            models.ProducerProduct.category.isnot(None),
+        )
+        .group_by(models.ProducerProduct.category)
+        .order_by(func.count(models.ProducerProduct.id).desc(), models.ProducerProduct.category.asc())
+        .all()
+    )
+    return [
+        schemmas.CategoryGroupOut(
+            key=(category or "").strip().lower().replace(" ", "-"),
+            label=category,
+            count=count,
+        )
+        for category, count in rows
+        if category
+    ]
 
 
 @router.get("/favorites", response_model=list[schemmas.FavoriteOut])
