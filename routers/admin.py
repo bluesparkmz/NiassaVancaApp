@@ -157,6 +157,21 @@ def admin_list_companies(
     return [_company_out(company) for company in companies]
 
 
+@router.get("/check-admin")
+def check_admin(db: Session = Depends(get_db)):
+    ADMIN_EMAIL = "djoaquimnamueto@gmail.com"
+    user = db.query(models.User).filter(models.User.email == ADMIN_EMAIL.lower().strip()).first()
+    if not user:
+        return {"exists": False, "email": ADMIN_EMAIL}
+    return {
+        "exists": True,
+        "email": user.email,
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+        "is_admin": user.is_admin,
+        "is_active": user.is_active,
+    }
+
+
 @router.patch("/companies/{company_id}", response_model=schemmas.CompanyOut)
 def admin_update_company(
     company_id: int,

@@ -110,7 +110,7 @@ def _ensure_admin_user() -> None:
                 full_name="Admin",
                 name="Admin",
                 username="admin",
-                email=ADMIN_EMAIL,
+                email=ADMIN_EMAIL.lower().strip(),
                 phone=None,
                 password_hash=get_password_hash("1234"),
                 role=models.UserRole.ADMIN,
