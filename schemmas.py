@@ -118,7 +118,7 @@ class CompanyCreate(BaseModel):
 
     stay_type: Optional[str] = Field(default=None, max_length=80)
     price_per_night: Optional[Decimal] = None
-    currency: Optional[str] = Field(default="EUR", max_length=10)
+    currency: Optional[str] = Field(default="MZN", max_length=10)
     rating: Optional[Decimal] = None
     badge: Optional[str] = Field(default=None, max_length=120)
     amenities: List[str] = Field(default_factory=list)
@@ -278,7 +278,7 @@ class LodgingRoomIn(BaseModel):
     room_type: Optional[str] = Field(default=None, max_length=80)
     capacity: int = Field(default=1, ge=1, le=20)
     price_per_night: Decimal = Field(default=0)
-    currency: str = Field(default="EUR", max_length=10)
+    currency: str = Field(default="MZN", max_length=10)
     total_units: int = Field(default=1, ge=1, le=500)
     amenities: List[str] = Field(default_factory=list)
     images: List[str] = Field(default_factory=list)
