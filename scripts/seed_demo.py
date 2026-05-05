@@ -54,7 +54,7 @@ def add_lodging(db, owner):
             company_id=company.id,
             stay_type="Lodge",
             price_per_night=65,
-            currency="EUR",
+            currency="MZN",
             rating=4.92,
             badge="Favorito dos hóspedes",
             amenities=["Vista para o lago", "Pequeno-almoço incluído", "Wi-Fi", "Atividades locais"],

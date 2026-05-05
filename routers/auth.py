@@ -82,7 +82,7 @@ def _create_company_profile(db: Session, company: models.Company, payload: schem
                 company_id=company.id,
                 stay_type=payload.stay_type or "Lodge",
                 price_per_night=payload.price_per_night or 0,
-                currency=payload.currency or "EUR",
+                currency=payload.currency or "MZN",
                 rating=payload.rating,
                 badge=payload.badge,
                 amenities=payload.amenities or [],
