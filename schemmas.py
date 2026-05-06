@@ -217,6 +217,8 @@ class CompanySummary(BaseModel):
     status: str
     is_verified: bool
     is_featured: bool
+    logo_url: Optional[str] = None
+    cover_url: Optional[str] = None
     created_at: datetime
 
 

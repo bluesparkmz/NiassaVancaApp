@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import requests
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 import models
@@ -417,6 +418,24 @@ def update_me(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=4, max_length=128)
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Senha actual incorrecta")
+    current_user.password_hash = get_password_hash(payload.new_password)
+    db.commit()
+    return {"detail": "Senha alterada com sucesso"}
 
 
 @router.get("/profile", response_model=schemmas.ProfileSummaryOut)
