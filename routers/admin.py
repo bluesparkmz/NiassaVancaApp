@@ -760,3 +760,45 @@ async def admin_upload_cover(
         allowed_mime_prefixes=("image/",),
     )
     return {"url": url}
+
+
+@router.post("/companies/{company_id}/upload-cover")
+async def admin_upload_company_cover(
+    company_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload cover for existing company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    company.cover_url = await storage_manager.upload_file(
+        file,
+        COMPANIES_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    db.commit()
+    db.refresh(company)
+    return {"url": company.cover_url}
+
+
+@router.post("/companies/{company_id}/upload-logo")
+async def admin_upload_company_logo(
+    company_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload logo for existing company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    company.logo_url = await storage_manager.upload_file(
+        file,
+        COMPANIES_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    db.commit()
+    db.refresh(company)
+    return {"url": company.logo_url}
