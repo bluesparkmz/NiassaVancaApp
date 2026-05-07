@@ -115,7 +115,6 @@ class CompanyCreate(BaseModel):
     facebook: Optional[str] = Field(default=None, max_length=255)
     logo_url: Optional[str] = None
     cover_url: Optional[str] = None
-
     stay_type: Optional[str] = Field(default=None, max_length=80)
     price_per_night: Optional[Decimal] = None
     currency: Optional[str] = Field(default="MZN", max_length=10)
@@ -219,6 +218,7 @@ class CompanySummary(BaseModel):
     is_featured: bool
     logo_url: Optional[str] = None
     cover_url: Optional[str] = None
+    gallery_images: Optional[List[str]] = None
     created_at: datetime
 
 
@@ -233,6 +233,7 @@ class CompanyOut(CompanySummary):
     facebook: Optional[str] = None
     logo_url: Optional[str] = None
     cover_url: Optional[str] = None
+    gallery_images: List[str] = []
     owner_user_id: int
     updated_at: datetime
 
@@ -252,6 +253,7 @@ class CompanyUpdate(BaseModel):
     facebook: Optional[str] = Field(default=None, max_length=255)
     logo_url: Optional[str] = None
     cover_url: Optional[str] = None
+    gallery_images: Optional[List[str]] = None
     company_type: Optional[models.CompanyType] = None
     status: Optional[str] = None
     is_featured: Optional[bool] = None
@@ -617,6 +619,7 @@ class ProducerDetail(ProducerSummary):
     phone: Optional[str] = None
     email: Optional[str] = None
     whatsapp: Optional[str] = None
+    gallery_images: List[str] = []
     links: List[dict] = []
     products: List[ProducerProductOut] = []
     services: List[CompanyServiceOut] = []

@@ -15,6 +15,7 @@ RESTAURANT_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/restaurant-gallery"
 LODGING_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/lodging-gallery"
 LODGING_ROOMS_FOLDER = f"{COMPANIES_FOLDER}/lodging-rooms"
 PRODUCT_IMAGES_FOLDER = f"{COMPANIES_FOLDER}/products"
+COMPANY_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/gallery"
 from database import get_db
 
 
@@ -47,6 +48,7 @@ def _company_out(company: models.Company) -> schemmas.CompanyOut:
         facebook=company.facebook,
         logo_url=company.logo_url,
         cover_url=company.cover_url,
+        gallery_images=list(company.gallery_images or []),
         status=company.status.value if hasattr(company.status, "value") else str(company.status),
         is_verified=company.is_verified,
         is_featured=company.is_featured,
@@ -385,6 +387,7 @@ def create_company_after_login(
         facebook=payload.facebook,
         logo_url=payload.logo_url,
         cover_url=payload.cover_url,
+        gallery_images=payload.gallery_images or [],
         status=models.CompanyStatus.PENDING,
         is_verified=False,
         is_featured=False,
@@ -662,6 +665,27 @@ async def upload_company_cover(
     db.commit()
     db.refresh(company)
     return {"url": company.cover_url}
+
+
+@router.post("/{company_id}/gallery/upload-image")
+async def upload_company_gallery_image(
+    company_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    url = await storage_manager.upload_file(
+        file,
+        COMPANY_GALLERY_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    gallery = list(company.gallery_images or [])
+    gallery.append(url)
+    company.gallery_images = gallery
+    db.commit()
+    db.refresh(company)
+    return {"url": url, "gallery_images": gallery}
 
 
 @router.post("/{company_id}/products/{product_id}/upload-image")

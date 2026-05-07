@@ -134,6 +134,7 @@ def admin_create_company(
         facebook=payload.company.facebook,
         logo_url=payload.company.logo_url,
         cover_url=payload.company.cover_url,
+        gallery_images=payload.company.gallery_images or [],
         status=models.CompanyStatus.PENDING,
         is_verified=False,
         is_featured=False,
@@ -636,6 +637,34 @@ class AdminChangePasswordIn(BaseModel):
 
 class AdminResetPasswordIn(BaseModel):
     user_id: int
+
+
+class AdminPromoteUserIn(BaseModel):
+    email: str = Field(..., max_length=140)
+
+
+@router.post("/users/make-admin")
+def admin_make_user_admin(
+    payload: AdminPromoteUserIn,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    email = payload.email.lower().strip()
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizador nao encontrado com este email")
+    user.role = models.UserRole.ADMIN
+    user.is_admin = True
+    user.is_active = True
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+        "is_admin": user.is_admin,
+    }
 
 
 @router.post("/users/{user_id}/change-password")

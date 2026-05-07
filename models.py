@@ -171,6 +171,7 @@ class Company(Base):
     facebook = Column(String(255), nullable=True)
     logo_url = Column(String(255), nullable=True)
     cover_url = Column(String(255), nullable=True)
+    gallery_images = Column(JSON, nullable=True)
     status = Column(
         Enum(CompanyStatus, values_callable=lambda x: [e.value for e in x], native_enum=False),
         nullable=False,

@@ -164,6 +164,9 @@ def _company_summary(company: models.Company) -> schemmas.CompanySummary:
         status=company.status.value if hasattr(company.status, "value") else str(company.status),
         is_verified=company.is_verified,
         is_featured=company.is_featured,
+        logo_url=company.logo_url,
+        cover_url=company.cover_url,
+        gallery_images=list(company.gallery_images or []),
         created_at=company.created_at,
     )
 
@@ -327,7 +330,7 @@ def get_lodging(slug: str, db: Session = Depends(get_db)):
         **summary.model_dump(),
         description=item.company.description,
         amenities=list(item.amenities or []),
-        gallery_images=list(item.gallery_images or []),
+        gallery_images=list(item.company.gallery_images or []) + list(item.gallery_images or []),
         beach_access=item.beach_access,
         check_in_time=item.check_in_time,
         check_out_time=item.check_out_time,
@@ -395,7 +398,7 @@ def get_restaurant(slug: str, db: Session = Depends(get_db)):
     return schemmas.RestaurantDetail(
         **summary.model_dump(),
         description=item.company.description,
-        gallery_images=list(item.gallery_images or []),
+        gallery_images=list(item.company.gallery_images or []) + list(item.gallery_images or []),
         menu=menu,
         services=services,
     )
@@ -459,6 +462,7 @@ def get_producer(slug: str, db: Session = Depends(get_db)):
         phone=item.company.phone,
         email=item.company.email,
         whatsapp=item.company.whatsapp,
+        gallery_images=list(item.company.gallery_images or []),
         links=list(item.social_links or []),
         products=products,
         services=[_service_out(service) for service in item.company.services if service.active],

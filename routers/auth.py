@@ -164,6 +164,9 @@ def _build_company_summary(company: models.Company) -> schemmas.CompanySummary:
         status=company.status.value if hasattr(company.status, "value") else str(company.status),
         is_verified=company.is_verified,
         is_featured=company.is_featured,
+        logo_url=company.logo_url,
+        cover_url=company.cover_url,
+        gallery_images=list(company.gallery_images or []),
         created_at=company.created_at,
     )
 
@@ -348,6 +351,7 @@ def register_company(payload: schemmas.CompanySignupRequest, db: Session = Depen
         facebook=payload.company.facebook,
         logo_url=payload.company.logo_url,
         cover_url=payload.company.cover_url,
+        gallery_images=payload.company.gallery_images or [],
         status=models.CompanyStatus.PENDING,
         is_verified=False,
         is_featured=False,
