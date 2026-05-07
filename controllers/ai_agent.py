@@ -273,11 +273,18 @@ def _company_to_dict(company: models.Company) -> dict[str, Any]:
 
 def _product_to_dict(product: models.ProducerProduct) -> dict[str, Any]:
     """Convert a ProducerProduct model to a dictionary."""
+    producer_name = None
+    try:
+        if product.producer and hasattr(product.producer, 'company') and product.producer.company:
+            producer_name = product.producer.company.name
+    except Exception:
+        pass
+    
     return {
         "id": product.id,
         "name": product.name,
         "producer_id": product.producer_id,
-        "producer_name": product.producer.company.name if product.producer and product.producer.company else None,
+        "producer_name": producer_name,
         "price": str(product.price_amount) if product.price_amount else product.price_label,
         "category": product.category,
         "description": product.short_description,
@@ -295,17 +302,17 @@ def extract_search_intent(message: str) -> tuple[str, dict[str, str]]:
     lower = message.lower()
     
     # Detect intent patterns
-    if any(word in lower for word in ["hotel", "alojamento", "hospedagem", "acomodação"]):
+    if any(word in lower for word in ["hotel", "alojamento", "hospedagem", "acomodação", "pousada", "hostel", "alojamentos", "hotéis"]):
         intent = "lodgings"
-    elif any(word in lower for word in ["restaurante", "comer", "refeição", "comida"]):
+    elif any(word in lower for word in ["restaurante", "comer", "refeição", "comida", "refeicao", "prato", "prato típico", "comidas", "restaurantes", "café", "cafe"]):
         intent = "restaurants"
-    elif any(word in lower for word in ["experiência", "tour", "passeio", "atividade", "viagem"]):
+    elif any(word in lower for word in ["experiência", "tour", "passeio", "atividade", "viagem", "turismo", "tours", "passeios", "atividades", "experiencias"]):
         intent = "experiences"
-    elif any(word in lower for word in ["produtor", "produtor", "agricultor", "fornecedor", "agrícola"]):
+    elif any(word in lower for word in ["produtor", "agricultor", "fornecedor", "agrícola", "agraria", "produtores", "agricultores", "fornecedores"]):
         intent = "producers"
-    elif any(word in lower for word in ["produto", "mercado", "comprar", "venda"]):
+    elif any(word in lower for word in ["produto", "mercado", "comprar", "venda", "produto", "produtos", "vender", "vende"]):
         intent = "products"
-    elif any(word in lower for word in ["empresa", "negócio", "loja", "estabelecimento", "prestador"]):
+    elif any(word in lower for word in ["empresa", "negócio", "loja", "estabelecimento", "prestador", "empresas", "negócios", "lojas"]):
         intent = "companies"
     else:
         intent = None
@@ -316,12 +323,14 @@ def extract_search_intent(message: str) -> tuple[str, dict[str, str]]:
         r"em (\w+ \w+)",
         r"zona (\w+)",
         r"distrito (\w+)",
+        r"na (\w+)",
+        r"na (\w+ \w+)",
     ]
     location = None
     for pattern in location_patterns:
         match = re.search(pattern, lower)
         if match:
-            location = match.group(1)
+            location = match.group(1).strip()
             break
     
     parameters = {}

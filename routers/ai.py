@@ -81,15 +81,23 @@ def _build_context_from_search(intent: str, params: dict, db: Session) -> str:
             if results:
                 context = "Produtos disponíveis no mercado:\n"
                 for r in results:
-                    context += f"- {r['name']} de {r['company_name']}: {r['description']}\n"
+                    company_name = r.get('producer_name', 'Produtor desconhecido')
+                    context += f"- {r['name']} de {company_name}: {r['description']}\n"
         elif intent == "companies":
             results = search_companies(db, query=params.get("query", ""), location=params.get("location"), limit=3)
             if results:
                 context = "Empresas parceiras Niassa:\n"
                 for r in results:
                     context += f"- {r['name']} ({r['type']}) em {r['location']}: {r['description']}\n"
+        
+        if context:
+            print(f"[AI Agent] Intent: {intent} | Context built with {len(results) if 'results' in locals() else 0} results")
+        else:
+            print(f"[AI Agent] Intent: {intent} | No results found")
     except Exception as e:
-        print(f"Erro ao buscar contexto: {e}")
+        print(f"[AI Agent] Erro ao buscar contexto para intent '{intent}': {e}")
+        import traceback
+        traceback.print_exc()
     
     return context
 
@@ -172,9 +180,13 @@ def chat_with_ai_stream(
     # Try to detect search intent and enrich context
     context = ""
     intent, params = extract_search_intent(payload.message)
+    print(f"[AI Chat] User message: {payload.message}")
+    print(f"[AI Chat] Detected intent: {intent}")
+    
     if intent:
         params["query"] = payload.message
         context = _build_context_from_search(intent, params, db)
+        print(f"[AI Chat] Context length: {len(context)}")
 
     def event_stream() -> Iterator[str]:
         full_text = ""
