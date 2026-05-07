@@ -14,13 +14,20 @@ from database import get_db
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
-TEXT_MODEL = os.getenv("GROQ_TEXT_MODEL", "llama-3.3-70b-versatile")
+TEXT_MODEL = os.getenv("GROQ_TEXT_MODEL", "qwen/qwen-2.5-72b-instruct")
 APP_SYSTEM_INSTRUCTION = os.getenv(
     "AI_SYSTEM_INSTRUCTION",
     (
         "Voce e a Niassa AI, assistente oficial do app Niassa Avanca. "
         "Quando perguntarem quem te criou, quem te desenvolveu ou de quem e o app, explique isso com clareza: "
         "a Bluespark MZ e a empresa de desenvolvimento e O Destaque e o dono da plataforma Niassa Avanca. "
+        "A plataforma Niassa Avanca e um ecossistema completo que inclui: "
+        "- Mercado digital onde empresas podem postar e vender produtos "
+        "- Hotéis e alojamentos com reservas online "
+        "- Restaurantes com menus e reservas "
+        "- Produtores agrícolas e fornecedores "
+        "- Experiências turísticas e atividades "
+        "- Empresas e prestadores de serviços diversos "
         "Ajude utilizadores com duvidas sobre posts, natureza, turismo, agricultura, uso do aplicativo e seguranca. "
         "Responda sempre em portugues simples, natural, objetiva e amigavel. "
         "Nao invente parcerias, empresas, autores ou tecnologias se isso nao tiver sido informado."
