@@ -434,7 +434,7 @@ def admin_list_products(
     db: Session = Depends(get_db),
     _: models.User = Depends(_require_admin),
 ):
-    products = db.query(models.ProducerProduct).order_by(models.ProducerProduct.created_at.desc()).all()
+    products = db.query(models.ProducerProduct).options(joinedload(models.ProducerProduct.producer)).order_by(models.ProducerProduct.created_at.desc()).all()
     return [
         {
             "id": p.id,
@@ -445,8 +445,8 @@ def admin_list_products(
             "image_url": p.image_url,
             "category": p.category,
             "short_description": p.short_description,
-            "company_id": p.producer_profile.company_id,
-            "company_name": p.producer_profile.company.name,
+            "company_id": p.producer.company_id,
+            "company_name": p.producer.company.name if p.producer.company else None,
             "active": p.active,
             "created_at": p.created_at,
         }
@@ -460,7 +460,7 @@ def admin_get_product(
     db: Session = Depends(get_db),
     _: models.User = Depends(_require_admin),
 ):
-    product = db.query(models.ProducerProduct).filter(models.ProducerProduct.id == product_id).first()
+    product = db.query(models.ProducerProduct).options(joinedload(models.ProducerProduct.producer)).filter(models.ProducerProduct.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
     return {
@@ -472,8 +472,8 @@ def admin_get_product(
         "image_url": product.image_url,
         "category": product.category,
         "short_description": product.short_description,
-        "company_id": product.producer_profile.company_id,
-        "company_name": product.producer_profile.company.name,
+        "company_id": product.producer.company_id,
+        "company_name": product.producer.company.name if product.producer.company else None,
         "active": product.active,
     }
 
