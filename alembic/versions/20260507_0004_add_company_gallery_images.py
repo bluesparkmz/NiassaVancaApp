@@ -1,7 +1,7 @@
 """add generic company gallery images
 
-Revision ID: 20260507_0004
-Revises: 20260423_0003
+Revision ID: 20260507_0006
+Revises: 20260423_0005
 Create Date: 2026-05-07 10:30:00
 """
 
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 
-revision: str = "20260507_0004"
-down_revision: Union[str, Sequence[str], None] = "20260423_0003"
+revision: str = "20260507_0006"
+down_revision: Union[str, Sequence[str], None] = "20260423_0005"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
