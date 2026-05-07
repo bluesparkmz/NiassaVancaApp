@@ -5,9 +5,12 @@ from collections.abc import Iterator
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from groq import Groq
+from sqlalchemy.orm import Session
 
 import schemmas
 from auth import get_current_user
+from controllers.ai_agent import extract_search_intent, search_companies, search_lodgings, search_restaurants, search_experiences, search_producers, search_products
+from database import get_db
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -33,12 +36,62 @@ def _get_client() -> Groq:
     return Groq(api_key=api_key)
 
 
-def _build_messages(payload: schemmas.AIChatRequest) -> list[dict[str, str]]:
-    messages: list[dict[str, str]] = [{"role": "system", "content": APP_SYSTEM_INSTRUCTION}]
+def _build_messages(payload: schemmas.AIChatRequest, context: str = "") -> list[dict[str, str]]:
+    system_instruction = APP_SYSTEM_INSTRUCTION
+    if context:
+        system_instruction += f"\n\n## Informações de Empresas Disponíveis\n{context}"
+    
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_instruction}]
     for item in payload.history[-10:]:
         messages.append({"role": item.role, "content": item.content.strip()})
     messages.append({"role": "user", "content": payload.message.strip()})
     return messages
+
+
+def _build_context_from_search(intent: str, params: dict, db: Session) -> str:
+    """Build context string from database search results."""
+    context = ""
+    try:
+        if intent == "lodgings":
+            results = search_lodgings(db, query=params.get("query", ""), location=params.get("location"), limit=3)
+            if results:
+                context = "Alojamentos disponíveis em Niassa:\n"
+                for r in results:
+                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
+        elif intent == "restaurants":
+            results = search_restaurants(db, query=params.get("query", ""), location=params.get("location"), limit=3)
+            if results:
+                context = "Restaurantes disponíveis:\n"
+                for r in results:
+                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
+        elif intent == "experiences":
+            results = search_experiences(db, query=params.get("query", ""), location=params.get("location"), limit=3)
+            if results:
+                context = "Experiências turísticas disponíveis:\n"
+                for r in results:
+                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
+        elif intent == "producers":
+            results = search_producers(db, query=params.get("query", ""), location=params.get("location"), limit=3)
+            if results:
+                context = "Produtores disponíveis:\n"
+                for r in results:
+                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
+        elif intent == "products":
+            results = search_products(db, query=params.get("query", ""), limit=3)
+            if results:
+                context = "Produtos disponíveis no mercado:\n"
+                for r in results:
+                    context += f"- {r['name']} de {r['company_name']}: {r['description']}\n"
+        elif intent == "companies":
+            results = search_companies(db, query=params.get("query", ""), location=params.get("location"), limit=3)
+            if results:
+                context = "Empresas parceiras Niassa:\n"
+                for r in results:
+                    context += f"- {r['name']} ({r['type']}) em {r['location']}: {r['description']}\n"
+    except Exception as e:
+        print(f"Erro ao buscar contexto: {e}")
+    
+    return context
 
 
 def _extract_delta_text(chunk) -> str:
@@ -61,10 +114,11 @@ def _extract_delta_text(chunk) -> str:
     return ""
 
 
-def _build_completion(client: Groq, payload: schemmas.AIChatRequest, stream: bool):
+def _build_completion(client: Groq, payload: schemmas.AIChatRequest, stream: bool, context: str = ""):
+    messages = _build_messages(payload, context)
     return client.chat.completions.create(
         model=TEXT_MODEL,
-        messages=_build_messages(payload),
+        messages=messages,
         temperature=0.6,
         max_completion_tokens=4096,
         top_p=0.95,
@@ -82,11 +136,20 @@ def _sse_event(event: str, data: dict) -> str:
 def chat_with_ai(
     payload: schemmas.AIChatRequest,
     current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     _ = current_user
     client = _get_client()
+    
+    # Try to detect search intent and enrich context
+    context = ""
+    intent, params = extract_search_intent(payload.message)
+    if intent:
+        params["query"] = payload.message
+        context = _build_context_from_search(intent, params, db)
+    
     try:
-        completion = _build_completion(client, payload, stream=False)
+        completion = _build_completion(client, payload, stream=False, context=context)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Falha ao comunicar com Groq: {exc}") from exc
 
@@ -101,15 +164,23 @@ def chat_with_ai(
 def chat_with_ai_stream(
     payload: schemmas.AIChatRequest,
     current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     _ = current_user
     client = _get_client()
+    
+    # Try to detect search intent and enrich context
+    context = ""
+    intent, params = extract_search_intent(payload.message)
+    if intent:
+        params["query"] = payload.message
+        context = _build_context_from_search(intent, params, db)
 
     def event_stream() -> Iterator[str]:
         full_text = ""
         yield _sse_event("start", {"model": TEXT_MODEL})
         try:
-            completion = _build_completion(client, payload, stream=True)
+            completion = _build_completion(client, payload, stream=True, context=context)
             for chunk in completion:
                 delta_text = _extract_delta_text(chunk)
                 if not delta_text:
