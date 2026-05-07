@@ -143,10 +143,8 @@ def _sse_event(event: str, data: dict) -> str:
 @router.post("/chat", response_model=schemmas.AIChatResponse)
 def chat_with_ai(
     payload: schemmas.AIChatRequest,
-    current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ = current_user
     client = _get_client()
     
     # Try to detect search intent and enrich context
