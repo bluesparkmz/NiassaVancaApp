@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, status, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 import models
 import schemmas
 from auth import get_current_user, get_password_hash
+from controllers.storage_manager import storage_manager, COMPANIES_FOLDER
 from database import get_db
 from routers.companies import (
     _company_out,
@@ -426,6 +427,170 @@ def admin_create_product(
     }
 
 
+# --------------- List all products ---------------
+
+@router.get("/products")
+def admin_list_products(
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    products = db.query(models.ProducerProduct).order_by(models.ProducerProduct.created_at.desc()).all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "slug": p.slug,
+            "price_label": p.price_label,
+            "price_amount": str(p.price_amount) if p.price_amount else None,
+            "image_url": p.image_url,
+            "category": p.category,
+            "short_description": p.short_description,
+            "company_id": p.producer_profile.company_id,
+            "company_name": p.producer_profile.company.name,
+            "active": p.active,
+            "created_at": p.created_at,
+        }
+        for p in products
+    ]
+
+
+@router.get("/products/{product_id}")
+def admin_get_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    product = db.query(models.ProducerProduct).filter(models.ProducerProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    return {
+        "id": product.id,
+        "name": product.name,
+        "slug": product.slug,
+        "price_label": product.price_label,
+        "price_amount": str(product.price_amount) if product.price_amount else None,
+        "image_url": product.image_url,
+        "category": product.category,
+        "short_description": product.short_description,
+        "company_id": product.producer_profile.company_id,
+        "company_name": product.producer_profile.company.name,
+        "active": product.active,
+    }
+
+
+@router.patch("/products/{product_id}")
+def admin_update_product(
+    product_id: int,
+    payload: schemmas.ProductIn,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    product = db.query(models.ProducerProduct).filter(models.ProducerProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(product, key, value)
+    db.commit()
+    db.refresh(product)
+    return {"detail": "Produto atualizado"}
+
+
+@router.delete("/products/{product_id}")
+def admin_delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    product = db.query(models.ProducerProduct).filter(models.ProducerProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    db.delete(product)
+    db.commit()
+    return {"detail": "Produto eliminado"}
+
+
+# --------------- List all services ---------------
+
+@router.get("/services")
+def admin_list_services(
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    services = db.query(models.CompanyService).order_by(models.CompanyService.created_at.desc()).all()
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "price_label": s.price_label,
+            "price_amount": str(s.price_amount) if s.price_amount else None,
+            "image_url": s.image_url,
+            "category": s.category,
+            "short_description": s.short_description,
+            "company_id": s.company_id,
+            "company_name": s.company.name,
+            "active": s.active,
+            "created_at": s.created_at,
+        }
+        for s in services
+    ]
+
+
+@router.get("/services/{service_id}")
+def admin_get_service(
+    service_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    service = db.query(models.CompanyService).filter(models.CompanyService.id == service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servico nao encontrado")
+    return {
+        "id": service.id,
+        "name": service.name,
+        "price_label": service.price_label,
+        "price_amount": str(service.price_amount) if service.price_amount else None,
+        "image_url": service.image_url,
+        "category": service.category,
+        "short_description": service.short_description,
+        "company_id": service.company_id,
+        "company_name": service.company.name,
+        "active": service.active,
+    }
+
+
+@router.patch("/services/{service_id}")
+def admin_update_service(
+    service_id: int,
+    payload: schemmas.ServiceIn,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    service = db.query(models.CompanyService).filter(models.CompanyService.id == service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servico nao encontrado")
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(service, key, value)
+    db.commit()
+    db.refresh(service)
+    return {"detail": "Servico atualizado"}
+
+
+@router.delete("/services/{service_id}")
+def admin_delete_service(
+    service_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    service = db.query(models.CompanyService).filter(models.CompanyService.id == service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servico nao encontrado")
+    db.delete(service)
+    db.commit()
+    return {"detail": "Servico eliminado"}
+
+
 # --------------- Create service inside company ---------------
 
 @router.post("/companies/{company_id}/services", status_code=status.HTTP_201_CREATED)
@@ -501,3 +666,33 @@ def admin_reset_password(
     user.password_hash = get_password_hash(new_password)
     db.commit()
     return {"new_password": new_password, "user_id": user.id, "email": user.email}
+
+
+# --------------- Image upload endpoints ---------------
+
+@router.post("/upload-logo")
+async def admin_upload_logo(
+    file: UploadFile = File(...),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload logo for company creation - returns URL to use in create request"""
+    url = await storage_manager.upload_file(
+        file,
+        COMPANIES_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    return {"url": url}
+
+
+@router.post("/upload-cover")
+async def admin_upload_cover(
+    file: UploadFile = File(...),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload cover for company creation - returns URL to use in create request"""
+    url = await storage_manager.upload_file(
+        file,
+        COMPANIES_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    return {"url": url}
