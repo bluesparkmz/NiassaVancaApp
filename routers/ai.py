@@ -14,7 +14,7 @@ from database import get_db
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
-TEXT_MODEL = os.getenv("GROQ_TEXT_MODEL", "qwen/qwen3-32b")
+TEXT_MODEL = os.getenv("GROQ_TEXT_MODEL", "llama-3.3-70b-versatile")
 APP_SYSTEM_INSTRUCTION = os.getenv(
     "AI_SYSTEM_INSTRUCTION",
     (
