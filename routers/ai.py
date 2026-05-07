@@ -171,10 +171,8 @@ def chat_with_ai(
 @router.post("/chat/stream")
 def chat_with_ai_stream(
     payload: schemmas.AIChatRequest,
-    current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ = current_user
     client = _get_client()
     
     # Try to detect search intent and enrich context
