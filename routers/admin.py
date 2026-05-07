@@ -802,3 +802,155 @@ async def admin_upload_company_logo(
     db.commit()
     db.refresh(company)
     return {"url": company.logo_url}
+
+
+# --------------- Rooms management for admin ---------------
+
+@router.get("/companies/{company_id}/rooms", response_model=list[schemmas.LodgingRoomOut])
+def admin_list_rooms(
+    company_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """List rooms for a company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        return []
+    return [schemmas.LodgingRoomOut(
+        id=r.id,
+        name=r.name,
+        room_type=r.room_type,
+        capacity=r.capacity,
+        price_per_night=str(r.price_per_night) if r.price_per_night else None,
+        currency=r.currency,
+        total_units=r.total_units,
+        active=r.active,
+    ) for r in company.lodging_profile.rooms if r.active]
+
+
+@router.post("/companies/{company_id}/rooms", response_model=schemmas.LodgingRoomOut)
+def admin_create_room(
+    company_id: int,
+    payload: schemmas.LodgingRoomIn,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Create a room for a company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+    
+    room = models.LodgingRoom(
+        lodging_profile_id=company.lodging_profile.id,
+        name=payload.name.strip(),
+        room_type=payload.room_type,
+        capacity=payload.capacity,
+        price_per_night=payload.price_per_night,
+        currency=payload.currency or "MZN",
+        total_units=payload.total_units,
+        active=True,
+    )
+    db.add(room)
+    db.commit()
+    db.refresh(room)
+    return schemmas.LodgingRoomOut(
+        id=room.id,
+        name=room.name,
+        room_type=room.room_type,
+        capacity=room.capacity,
+        price_per_night=str(room.price_per_night) if room.price_per_night else None,
+        currency=room.currency,
+        total_units=room.total_units,
+        active=room.active,
+    )
+
+
+@router.delete("/companies/{company_id}/rooms/{room_id}")
+def admin_delete_room(
+    company_id: int,
+    room_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Delete a room - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+    
+    room = next((item for item in company.lodging_profile.rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Quarto nao encontrado")
+    
+    db.delete(room)
+    db.commit()
+    return {"detail": "Quarto removido"}
+
+
+# --------------- Menu management for admin ---------------
+
+@router.get("/companies/{company_id}/restaurant-menu", response_model=list[schemmas.RestaurantMenuItem])
+def admin_list_menu(
+    company_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """List menu items for a company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.restaurant_profile:
+        return []
+    return [schemmas.RestaurantMenuItem(**item) for item in (company.restaurant_profile.menu_items or [])]
+
+
+@router.post("/companies/{company_id}/restaurant-menu", response_model=list[schemmas.RestaurantMenuItem])
+def admin_add_menu_item(
+    company_id: int,
+    payload: schemmas.RestaurantMenuItem,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Add a menu item for a company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.restaurant_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de restaurante")
+    
+    items = list(company.restaurant_profile.menu_items or [])
+    items.append(payload.model_dump())
+    company.restaurant_profile.menu_items = items
+    db.commit()
+    db.refresh(company)
+    return [schemmas.RestaurantMenuItem(**item) for item in items]
+
+
+@router.delete("/companies/{company_id}/restaurant-menu/{index}", response_model=list[schemmas.RestaurantMenuItem])
+def admin_delete_menu_item(
+    company_id: int,
+    index: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Delete a menu item - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.restaurant_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de restaurante")
+    
+    items = list(company.restaurant_profile.menu_items or [])
+    if index < 0 or index >= len(items):
+        raise HTTPException(status_code=404, detail="Item do menu nao encontrado")
+    
+    items.pop(index)
+    company.restaurant_profile.menu_items = items
+    db.commit()
+    db.refresh(company)
+    return [schemmas.RestaurantMenuItem(**item) for item in items]
