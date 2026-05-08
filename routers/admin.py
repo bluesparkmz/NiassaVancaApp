@@ -102,6 +102,13 @@ class AdminCreateCompanyOut(BaseModel):
     is_new_user: bool = True
 
 
+class AdminCompanyContactsIn(BaseModel):
+    phone: str | None = Field(default=None, min_length=5, max_length=30)
+    website: str | None = Field(default=None, max_length=255)
+    facebook: str | None = Field(default=None, max_length=255)
+    instagram: str | None = Field(default=None, max_length=255)
+
+
 @router.post("/companies", response_model=AdminCreateCompanyOut, status_code=status.HTTP_201_CREATED)
 def admin_create_company(
     payload: AdminCreateCompanyIn,
@@ -199,6 +206,29 @@ def admin_update_company(
     if new_company_type is not None:
         company_type_value = new_company_type.value if hasattr(new_company_type, "value") else str(new_company_type)
         _ensure_company_profiles_for_type(db, company, company_type_value)
+
+    db.commit()
+    db.refresh(company)
+    return _company_out(company)
+
+
+@router.patch("/companies/{company_id}/contacts", response_model=schemmas.CompanyOut)
+def admin_update_company_contacts(
+    company_id: int,
+    payload: AdminCompanyContactsIn,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(company, key, value.strip() if isinstance(value, str) and value.strip() else None)
+
+    if not company.phone:
+        raise HTTPException(status_code=400, detail="Telefone da empresa e obrigatorio")
 
     db.commit()
     db.refresh(company)
