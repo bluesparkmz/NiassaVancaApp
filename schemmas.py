@@ -506,6 +506,10 @@ class LodgingSummary(BaseModel):
 
 class LodgingDetail(LodgingSummary):
     description: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    whatsapp: Optional[str] = None
+    website: Optional[str] = None
     amenities: List[str] = []
     gallery_images: List[str] = []
     beach_access: bool = False
@@ -574,6 +578,10 @@ class RestaurantMenuItem(BaseModel):
 
 class RestaurantDetail(RestaurantSummary):
     description: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    whatsapp: Optional[str] = None
+    website: Optional[str] = None
     gallery_images: List[str] = []
     menu: List[RestaurantMenuItem] = []
     services: List["CompanyServiceOut"] = []
@@ -619,6 +627,7 @@ class ProducerDetail(ProducerSummary):
     phone: Optional[str] = None
     email: Optional[str] = None
     whatsapp: Optional[str] = None
+    website: Optional[str] = None
     gallery_images: List[str] = []
     links: List[dict] = []
     products: List[ProducerProductOut] = []
