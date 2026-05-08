@@ -83,6 +83,18 @@ def search_companies(
         )
 
     results = q.limit(limit).all()
+    if not results and query:
+        fallback = db.query(models.Company).filter(models.Company.status == models.CompanyStatus.APPROVED)
+        if company_type:
+            fallback = fallback.filter(models.Company.company_type == company_type)
+        if location:
+            fallback = fallback.filter(
+                or_(
+                    models.Company.location.ilike(f"%{location}%"),
+                    models.Company.district.ilike(f"%{location}%"),
+                )
+            )
+        results = fallback.order_by(models.Company.is_featured.desc(), models.Company.created_at.desc()).limit(limit).all()
     print(f"[AI Agent] search_companies found {len(results)} results")
     return [_company_to_dict(c) for c in results]
 
@@ -99,11 +111,16 @@ def get_company_details(db: Session, company_id: int | str) -> Optional[dict[str
 
 def search_site(db: Session, query: str, limit: int = 8) -> dict[str, Any]:
     cleaned = _clean_query(query) or query.strip()
+    companies = search_companies(db, cleaned, limit=limit)
+    products = search_products(db, cleaned, limit=limit)
+    services = search_services(db, cleaned, limit=limit)
+    if not companies:
+        companies = search_companies(db, "", limit=limit)
     return {
         "query": cleaned,
-        "companies": search_companies(db, cleaned, limit=limit),
-        "products": search_products(db, cleaned, limit=limit),
-        "services": search_services(db, cleaned, limit=limit),
+        "companies": companies,
+        "products": products,
+        "services": services,
     }
 
 
@@ -113,19 +130,16 @@ def search_lodgings(
     """
     Search for lodging companies (hotels, apartments, etc).
     """
+    lodging_types = [
+        models.CompanyType.HOTEL.value,
+        models.CompanyType.LODGING.value,
+        models.CompanyType.HOSPITALITY.value,
+        models.CompanyType.BEACH.value,
+        models.CompanyType.RESTAURANT_RESIDENCE.value,
+    ]
     q = db.query(models.Company).filter(
-        and_(
-            models.Company.company_type.in_(
-                [
-                    models.CompanyType.HOTEL.value,
-                    models.CompanyType.LODGING.value,
-                    models.CompanyType.HOSPITALITY.value,
-                    models.CompanyType.BEACH.value,
-                    models.CompanyType.RESTAURANT_RESIDENCE.value,
-                ]
-            ),
-            models.Company.status == models.CompanyStatus.APPROVED,
-        )
+        models.Company.company_type.in_(lodging_types),
+        models.Company.status == models.CompanyStatus.APPROVED,
     )
 
     if query:
@@ -154,16 +168,14 @@ def search_restaurants(
     """
     Search for restaurant companies.
     """
+    restaurant_types = [
+        models.CompanyType.RESTAURANT.value,
+        models.CompanyType.HOTEL.value,
+        models.CompanyType.RESTAURANT_RESIDENCE.value,
+    ]
     q = db.query(models.Company).filter(
-        and_(
-            models.Company.company_type.in_(
-                [
-                    models.CompanyType.RESTAURANT.value,
-                    models.CompanyType.HOTEL.value,
-                ]
-            ),
-            models.Company.status == models.CompanyStatus.APPROVED,
-        )
+        models.Company.company_type.in_(restaurant_types),
+        models.Company.status == models.CompanyStatus.APPROVED,
     )
 
     if query:
@@ -192,16 +204,13 @@ def search_experiences(
     """
     Search for experience companies (tours, activities, etc).
     """
+    experience_types = [
+        models.CompanyType.EXPERIENCE.value,
+        models.CompanyType.TRAVEL_AGENCY.value,
+    ]
     q = db.query(models.Company).filter(
-        and_(
-            models.Company.company_type.in_(
-                [
-                    models.CompanyType.EXPERIENCE.value,
-                    models.CompanyType.TRAVEL_AGENCY.value,
-                ]
-            ),
-            models.Company.status == models.CompanyStatus.APPROVED,
-        )
+        models.Company.company_type.in_(experience_types),
+        models.Company.status == models.CompanyStatus.APPROVED,
     )
 
     if query:
@@ -230,18 +239,15 @@ def search_producers(
     """
     Search for producer companies (farms, suppliers, etc).
     """
+    producer_types = [
+        models.CompanyType.PRODUCER.value,
+        models.CompanyType.SUPPLIER.value,
+        models.CompanyType.GOODS_SUPPLIER.value,
+        models.CompanyType.AGRO_LIVESTOCK.value,
+    ]
     q = db.query(models.Company).filter(
-        and_(
-            models.Company.company_type.in_(
-                [
-                    models.CompanyType.PRODUCER.value,
-                    models.CompanyType.SUPPLIER.value,
-                    models.CompanyType.GOODS_SUPPLIER.value,
-                    models.CompanyType.AGRO_LIVESTOCK.value,
-                ]
-            ),
-            models.Company.status == models.CompanyStatus.APPROVED,
-        )
+        models.Company.company_type.in_(producer_types),
+        models.Company.status == models.CompanyStatus.APPROVED,
     )
 
     if query:
@@ -290,6 +296,19 @@ def search_products(
         q = q.filter(models.ProducerProduct.category.ilike(f"%{category}%"))
 
     results = q.limit(limit).all()
+    if not results and query:
+        results = (
+            db.query(models.ProducerProduct)
+            .join(models.ProducerProfile)
+            .join(models.Company)
+            .filter(
+                models.Company.status == models.CompanyStatus.APPROVED,
+                models.ProducerProduct.active == True,
+            )
+            .order_by(models.ProducerProduct.created_at.desc())
+            .limit(limit)
+            .all()
+        )
     return [_product_to_dict(p) for p in results]
 
 
@@ -313,7 +332,20 @@ def search_services(db: Session, query: str, category: Optional[str] = None, lim
         )
     if category:
         q = q.filter(models.CompanyService.category.ilike(f"%{category}%"))
-    return [_service_to_dict(item) for item in q.limit(limit).all()]
+    results = q.limit(limit).all()
+    if not results and query:
+        results = (
+            db.query(models.CompanyService)
+            .join(models.Company)
+            .filter(
+                models.Company.status == models.CompanyStatus.APPROVED,
+                models.CompanyService.active == True,
+            )
+            .order_by(models.CompanyService.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+    return [_service_to_dict(item) for item in results]
 
 
 def get_company_stats(db: Session) -> dict[str, Any]:
@@ -478,6 +510,10 @@ def extract_company_reference(message: str) -> Optional[str]:
 
 def build_agent_context(db: Session, message: str) -> str:
     blocks: list[str] = []
+    public_companies_sample = search_companies(db, "", limit=10)
+    if public_companies_sample:
+        blocks.append("AMOSTRA_DE_EMPRESAS_PUBLICAS_DISPONIVEIS:\n" + _format_json(public_companies_sample))
+
     company_reference = extract_company_reference(message)
     if company_reference:
         company = get_company_details(db, company_reference)
