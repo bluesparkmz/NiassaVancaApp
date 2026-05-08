@@ -932,14 +932,46 @@ def admin_delete_room(
         raise HTTPException(status_code=404, detail="Empresa nao encontrada")
     if not company.lodging_profile:
         raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
-    
+
     room = next((item for item in company.lodging_profile.rooms if item.id == room_id), None)
     if not room:
         raise HTTPException(status_code=404, detail="Quarto nao encontrado")
-    
+
     db.delete(room)
     db.commit()
-    return {"detail": "Quarto removido"}
+    return {"detail": "Quarto eliminado"}
+
+
+@router.post("/companies/{company_id}/rooms/{room_id}/upload-image")
+async def admin_upload_room_image(
+    company_id: int,
+    room_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload image for a room - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+
+    room = next((item for item in company.lodging_profile.rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Quarto nao encontrado")
+
+    if not room.images:
+        room.images = []
+    image_url = await storage_manager.upload_file(
+        file,
+        f"{COMPANIES_FOLDER}/lodging/rooms",
+        allowed_mime_prefixes=("image/",),
+    )
+    room.images.append(image_url)
+    db.commit()
+    db.refresh(room)
+    return {"url": image_url}
 
 
 # --------------- Menu management for admin ---------------
