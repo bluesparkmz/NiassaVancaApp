@@ -8,8 +8,7 @@ from groq import Groq
 from sqlalchemy.orm import Session
 
 import schemmas
-from auth import get_current_user
-from controllers.ai_agent import extract_search_intent, search_companies, search_lodgings, search_restaurants, search_experiences, search_producers, search_products
+from controllers.ai_agent import build_agent_context, get_company_details, search_site
 from database import get_db
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -29,6 +28,8 @@ APP_SYSTEM_INSTRUCTION = os.getenv(
         "- Experiências turísticas e atividades "
         "- Empresas e prestadores de serviços diversos "
         "Ajude utilizadores com duvidas sobre posts, natureza, turismo, agricultura, uso do aplicativo e seguranca. "
+        "Quando receber contexto da base de dados, use apenas esses dados para recomendar empresas, contactos, produtos, quartos, menus ou servicos. "
+        "Se nao encontrar informacao no contexto, diga que nao encontrou no Niassa Avanca em vez de inventar. "
         "Responda sempre em portugues simples, natural, objetiva e amigavel. "
         "Nao invente parcerias, empresas, autores ou tecnologias se isso nao tiver sido informado."
         "Voce foi criada pela Bluespark MZ em parceria com O Destaque, proprietario da plataforma. "
@@ -46,67 +47,13 @@ def _get_client() -> Groq:
 def _build_messages(payload: schemmas.AIChatRequest, context: str = "") -> list[dict[str, str]]:
     system_instruction = APP_SYSTEM_INSTRUCTION
     if context:
-        system_instruction += f"\n\n## Informações de Empresas Disponíveis\n{context}"
+        system_instruction += f"\n\n## CONTEXTO_LIDO_PELO_AGENTE\n{context}"
     
     messages: list[dict[str, str]] = [{"role": "system", "content": system_instruction}]
     for item in payload.history[-10:]:
         messages.append({"role": item.role, "content": item.content.strip()})
     messages.append({"role": "user", "content": payload.message.strip()})
     return messages
-
-
-def _build_context_from_search(intent: str, params: dict, db: Session) -> str:
-    """Build context string from database search results."""
-    context = ""
-    try:
-        if intent == "lodgings":
-            results = search_lodgings(db, query=params.get("query", ""), location=params.get("location"), limit=3)
-            if results:
-                context = "Alojamentos disponíveis em Niassa:\n"
-                for r in results:
-                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
-        elif intent == "restaurants":
-            results = search_restaurants(db, query=params.get("query", ""), location=params.get("location"), limit=3)
-            if results:
-                context = "Restaurantes disponíveis:\n"
-                for r in results:
-                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
-        elif intent == "experiences":
-            results = search_experiences(db, query=params.get("query", ""), location=params.get("location"), limit=3)
-            if results:
-                context = "Experiências turísticas disponíveis:\n"
-                for r in results:
-                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
-        elif intent == "producers":
-            results = search_producers(db, query=params.get("query", ""), location=params.get("location"), limit=3)
-            if results:
-                context = "Produtores disponíveis:\n"
-                for r in results:
-                    context += f"- {r['name']} em {r['location']}: {r['description']}\n"
-        elif intent == "products":
-            results = search_products(db, query=params.get("query", ""), limit=3)
-            if results:
-                context = "Produtos disponíveis no mercado:\n"
-                for r in results:
-                    company_name = r.get('producer_name', 'Produtor desconhecido')
-                    context += f"- {r['name']} de {company_name}: {r['description']}\n"
-        elif intent == "companies":
-            results = search_companies(db, query=params.get("query", ""), location=params.get("location"), limit=3)
-            if results:
-                context = "Empresas parceiras Niassa:\n"
-                for r in results:
-                    context += f"- {r['name']} ({r['type']}) em {r['location']}: {r['description']}\n"
-        
-        if context:
-            print(f"[AI Agent] Intent: {intent} | Context built with {len(results) if 'results' in locals() else 0} results")
-        else:
-            print(f"[AI Agent] Intent: {intent} | No results found")
-    except Exception as e:
-        print(f"[AI Agent] Erro ao buscar contexto para intent '{intent}': {e}")
-        import traceback
-        traceback.print_exc()
-    
-    return context
 
 
 def _extract_delta_text(chunk) -> str:
@@ -153,13 +100,7 @@ def chat_with_ai(
     db: Session = Depends(get_db),
 ):
     client = _get_client()
-    
-    # Try to detect search intent and enrich context
-    context = ""
-    intent, params = extract_search_intent(payload.message)
-    if intent:
-        params["query"] = payload.message
-        context = _build_context_from_search(intent, params, db)
+    context = build_agent_context(db, payload.message)
     
     try:
         completion = _build_completion(client, payload, stream=False, context=context)
@@ -179,17 +120,9 @@ def chat_with_ai_stream(
     db: Session = Depends(get_db),
 ):
     client = _get_client()
-    
-    # Try to detect search intent and enrich context
-    context = ""
-    intent, params = extract_search_intent(payload.message)
+    context = build_agent_context(db, payload.message)
     print(f"[AI Chat] User message: {payload.message}")
-    print(f"[AI Chat] Detected intent: {intent}")
-    
-    if intent:
-        params["query"] = payload.message
-        context = _build_context_from_search(intent, params, db)
-        print(f"[AI Chat] Context length: {len(context)}")
+    print(f"[AI Chat] Context length: {len(context)}")
 
     def event_stream() -> Iterator[str]:
         full_text = ""
@@ -215,3 +148,16 @@ def chat_with_ai_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/search")
+def ai_search_site(q: str, limit: int = 8, db: Session = Depends(get_db)):
+    return search_site(db, q, limit=limit)
+
+
+@router.get("/companies/{identifier}")
+def ai_company_details(identifier: str, db: Session = Depends(get_db)):
+    company = get_company_details(db, identifier)
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    return company
