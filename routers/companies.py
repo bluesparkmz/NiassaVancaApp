@@ -466,6 +466,26 @@ def update_my_company(
     return _company_out(company)
 
 
+@router.patch("/{company_id}/contacts", response_model=schemmas.CompanyOut)
+def update_my_company_contacts(
+    company_id: int,
+    payload: schemmas.CompanyUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    data = payload.model_dump(exclude_unset=True)
+    allowed_fields = {"phone", "whatsapp", "email", "website", "instagram", "facebook"}
+    for key, value in data.items():
+        if key in allowed_fields:
+            setattr(company, key, value.strip() if isinstance(value, str) and value.strip() else None)
+    if not company.phone:
+        raise HTTPException(status_code=400, detail="Telefone da empresa e obrigatorio")
+    db.commit()
+    db.refresh(company)
+    return _company_out(company)
+
+
 @router.patch("/{company_id}/lodging-profile", response_model=schemmas.CompanyOut)
 def update_lodging_profile(
     company_id: int,
