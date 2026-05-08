@@ -562,6 +562,26 @@ def admin_update_product(
     return {"detail": "Produto atualizado"}
 
 
+@router.post("/products/{product_id}/upload-image")
+async def admin_upload_product_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    product = db.query(models.ProducerProduct).filter(models.ProducerProduct.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    product.image_url = await storage_manager.upload_file(
+        file,
+        f"{COMPANIES_FOLDER}/products",
+        allowed_mime_prefixes=("image/",),
+    )
+    db.commit()
+    db.refresh(product)
+    return {"url": product.image_url}
+
+
 @router.delete("/products/{product_id}")
 def admin_delete_product(
     product_id: int,
