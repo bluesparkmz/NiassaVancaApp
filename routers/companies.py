@@ -583,6 +583,178 @@ def delete_lodging_room(
     return {"status": "ok"}
 
 
+# --------------- Conference Rooms ---------------
+
+@router.get("/{company_id}/conference-rooms", response_model=list[schemmas.ConferenceRoomOut])
+def list_conference_rooms(
+    company_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        return []
+    return [
+        schemmas.ConferenceRoomOut(
+            id=r.id,
+            name=r.name,
+            room_type=r.room_type,
+            capacity=r.capacity,
+            price_per_hour=str(r.price_per_hour) if r.price_per_hour else None,
+            currency=r.currency,
+            total_units=r.total_units,
+            amenities=r.amenities or [],
+            images=r.images or [],
+            short_description=r.short_description,
+            active=r.active,
+        )
+        for r in company.lodging_profile.conference_rooms
+    ]
+
+
+@router.post("/{company_id}/conference-rooms", response_model=schemmas.ConferenceRoomOut)
+def create_conference_room(
+    company_id: int,
+    payload: schemmas.ConferenceRoomIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa sem perfil de alojamento")
+
+    room = models.ConferenceRoom(
+        lodging_profile_id=company.lodging_profile.id,
+        name=payload.name.strip(),
+        room_type=payload.room_type,
+        capacity=payload.capacity,
+        price_per_hour=payload.price_per_hour,
+        currency=payload.currency or "MZN",
+        total_units=payload.total_units,
+        amenities=payload.amenities,
+        images=payload.images,
+        short_description=payload.short_description,
+        active=True,
+    )
+    db.add(room)
+    db.commit()
+    db.refresh(room)
+    return schemmas.ConferenceRoomOut(
+        id=room.id,
+        name=room.name,
+        room_type=room.room_type,
+        capacity=room.capacity,
+        price_per_hour=str(room.price_per_hour) if room.price_per_hour else None,
+        currency=room.currency,
+        total_units=room.total_units,
+        amenities=room.amenities or [],
+        images=room.images or [],
+        short_description=room.short_description,
+        active=room.active,
+    )
+
+
+@router.patch("/{company_id}/conference-rooms/{room_id}", response_model=schemmas.ConferenceRoomOut)
+def update_conference_room(
+    company_id: int,
+    room_id: int,
+    payload: schemmas.ConferenceRoomUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa sem perfil de alojamento")
+
+    room = next((item for item in company.lodging_profile.conference_rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Sala de conferência não encontrada")
+
+    if payload.name is not None:
+        room.name = payload.name.strip()
+    if payload.room_type is not None:
+        room.room_type = payload.room_type
+    if payload.capacity is not None:
+        room.capacity = payload.capacity
+    if payload.price_per_hour is not None:
+        room.price_per_hour = payload.price_per_hour
+    if payload.currency is not None:
+        room.currency = payload.currency
+    if payload.total_units is not None:
+        room.total_units = payload.total_units
+    if payload.amenities is not None:
+        room.amenities = payload.amenities
+    if payload.images is not None:
+        room.images = payload.images
+    if payload.short_description is not None:
+        room.short_description = payload.short_description
+    if payload.active is not None:
+        room.active = payload.active
+
+    db.commit()
+    db.refresh(room)
+    return schemmas.ConferenceRoomOut(
+        id=room.id,
+        name=room.name,
+        room_type=room.room_type,
+        capacity=room.capacity,
+        price_per_hour=str(room.price_per_hour) if room.price_per_hour else None,
+        currency=room.currency,
+        total_units=room.total_units,
+        amenities=room.amenities or [],
+        images=room.images or [],
+        short_description=room.short_description,
+        active=room.active,
+    )
+
+
+@router.delete("/{company_id}/conference-rooms/{room_id}")
+def delete_conference_room(
+    company_id: int,
+    room_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa sem perfil de alojamento")
+    room = next((item for item in company.lodging_profile.conference_rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Sala de conferência não encontrada")
+    db.delete(room)
+    db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/{company_id}/conference-rooms/{room_id}/upload-image")
+async def upload_conference_room_image(
+    company_id: int,
+    room_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa sem perfil de alojamento")
+
+    room = next((item for item in company.lodging_profile.conference_rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Sala de conferência não encontrada")
+
+    if not room.images:
+        room.images = []
+    image_url = await storage_manager.upload_file(
+        file,
+        f"{COMPANIES_FOLDER}/lodging/conference-rooms",
+        allowed_mime_prefixes=("image/",),
+    )
+    room.images.append(image_url)
+    db.commit()
+    db.refresh(room)
+    return {"url": image_url}
+
+
 @router.patch("/{company_id}/experience-profile", response_model=schemmas.CompanyOut)
 def update_experience_profile(
     company_id: int,

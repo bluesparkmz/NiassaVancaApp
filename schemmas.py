@@ -316,6 +316,45 @@ class LodgingRoomOut(BaseModel):
     active: bool
 
 
+class ConferenceRoomIn(BaseModel):
+    name: str = Field(..., min_length=2, max_length=180)
+    room_type: Optional[str] = Field(default=None, max_length=80)
+    capacity: int = Field(default=1, ge=1, le=50)
+    price_per_hour: Decimal = Field(default=0)
+    currency: str = Field(default="MZN", max_length=10)
+    total_units: int = Field(default=1, ge=1, le=100)
+    amenities: List[str] = Field(default_factory=list)
+    images: List[str] = Field(default_factory=list)
+    short_description: Optional[str] = Field(default=None, max_length=255)
+
+
+class ConferenceRoomUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=180)
+    room_type: Optional[str] = Field(default=None, max_length=80)
+    capacity: Optional[int] = Field(default=None, ge=1, le=50)
+    price_per_hour: Optional[Decimal] = None
+    currency: Optional[str] = Field(default=None, max_length=10)
+    total_units: Optional[int] = Field(default=None, ge=1, le=100)
+    amenities: Optional[List[str]] = None
+    images: Optional[List[str]] = None
+    short_description: Optional[str] = Field(default=None, max_length=255)
+    active: Optional[bool] = None
+
+
+class ConferenceRoomOut(BaseModel):
+    id: int
+    name: str
+    room_type: Optional[str] = None
+    capacity: int
+    price_per_hour: Decimal
+    currency: str
+    total_units: int
+    amenities: List[str] = []
+    images: List[str] = []
+    short_description: Optional[str] = None
+    active: bool
+
+
 class ExperienceProfileUpdate(BaseModel):
     host_name: Optional[str] = Field(default=None, max_length=180)
     schedule_text: Optional[str] = Field(default=None, max_length=180)

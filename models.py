@@ -217,6 +217,7 @@ class LodgingProfile(Base):
 
     company = relationship("Company", back_populates="lodging_profile")
     rooms = relationship("LodgingRoom", back_populates="lodging_profile", cascade="all, delete-orphan")
+    conference_rooms = relationship("ConferenceRoom", back_populates="lodging_profile", cascade="all, delete-orphan")
 
 
 class ExperienceProfile(Base):
@@ -317,6 +318,30 @@ class LodgingRoom(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     lodging_profile = relationship("LodgingProfile", back_populates="rooms")
+
+
+class ConferenceRoom(Base):
+    __tablename__ = "conference_rooms"
+    __table_args__ = (
+        UniqueConstraint("lodging_profile_id", "name", name="uq_conference_room_name"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    lodging_profile_id = Column(Integer, ForeignKey("lodging_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(180), nullable=False)
+    room_type = Column(String(80), nullable=True)
+    capacity = Column(Integer, nullable=False, default=1)
+    price_per_hour = Column(DECIMAL(14, 2), nullable=False, default=0.00)
+    currency = Column(String(10), nullable=False, default="MZN")
+    total_units = Column(Integer, nullable=False, default=1)
+    amenities = Column(JSON, nullable=True)
+    images = Column(JSON, nullable=True)
+    short_description = Column(String(255), nullable=True)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    lodging_profile = relationship("LodgingProfile", back_populates="conference_rooms")
 
 
 class CompanyService(Base):
