@@ -1193,17 +1193,19 @@ def admin_delete_conference_room(
     return {"detail": "Sala de conferência eliminada"}
 
 
+class SmsRequest(BaseModel):
+    phone: str
+    message: str
+
+
 @router.post("/send-sms")
 def admin_send_sms(
-    payload: dict,
+    payload: SmsRequest = Body(...),
     _: models.User = Depends(_require_admin),
 ):
     """Enviar SMS manualmente - admin only"""
     from controllers.send_sms import send_sms
-    phone = payload.get("phone")
-    message = payload.get("message")
-    sender_id = payload.get("sender_id", "AGVIAGEM")
-    result = send_sms(phone, message, sender_id)
+    result = send_sms(payload.phone, payload.message)
     return result
 
 
