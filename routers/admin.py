@@ -425,6 +425,21 @@ def admin_company_detail(
                 "active": r.active,
             })
 
+    conference_rooms = []
+    if company.lodging_profile:
+        for r in company.lodging_profile.conference_rooms:
+            conference_rooms.append({
+                "id": r.id,
+                "name": r.name,
+                "room_type": r.room_type,
+                "capacity": r.capacity,
+                "price_per_hour": str(r.price_per_hour),
+                "currency": r.currency,
+                "total_units": r.total_units,
+                "active": r.active,
+                "images": r.images or [],
+            })
+
     menu_items = []
     if company.restaurant_profile and company.restaurant_profile.menu_items:
         menu_items = company.restaurant_profile.menu_items
@@ -442,6 +457,7 @@ def admin_company_detail(
         "products": products,
         "services": services,
         "rooms": rooms,
+        "conference_rooms": conference_rooms,
         "menu_items": menu_items,
         "leads_count": leads_count,
     }
@@ -1012,6 +1028,195 @@ async def admin_upload_room_image(
     image_url = await storage_manager.upload_file(
         file,
         f"{COMPANIES_FOLDER}/lodging/rooms",
+        allowed_mime_prefixes=("image/",),
+    )
+    room.images.append(image_url)
+    db.commit()
+    db.refresh(room)
+    return {"url": image_url}
+
+
+# --------------- Conference Rooms for admin ---------------
+
+@router.get("/companies/{company_id}/conference-rooms", response_model=list[schemmas.ConferenceRoomOut])
+def admin_list_conference_rooms(
+    company_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """List conference rooms for a company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        return []
+    return [
+        schemmas.ConferenceRoomOut(
+            id=r.id,
+            name=r.name,
+            room_type=r.room_type,
+            capacity=r.capacity,
+            price_per_hour=str(r.price_per_hour) if r.price_per_hour else None,
+            currency=r.currency,
+            total_units=r.total_units,
+            amenities=r.amenities or [],
+            images=r.images or [],
+            short_description=r.short_description,
+            active=r.active,
+        )
+        for r in company.lodging_profile.conference_rooms
+    ]
+
+
+@router.post("/companies/{company_id}/conference-rooms", response_model=schemmas.ConferenceRoomOut)
+def admin_create_conference_room(
+    company_id: int,
+    payload: schemmas.ConferenceRoomIn,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Create a conference room for a company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+
+    room = models.ConferenceRoom(
+        lodging_profile_id=company.lodging_profile.id,
+        name=payload.name.strip(),
+        room_type=payload.room_type,
+        capacity=payload.capacity,
+        price_per_hour=payload.price_per_hour,
+        currency=payload.currency or "MZN",
+        total_units=payload.total_units,
+        amenities=payload.amenities,
+        images=payload.images,
+        short_description=payload.short_description,
+        active=True,
+    )
+    db.add(room)
+    db.commit()
+    db.refresh(room)
+    return schemmas.ConferenceRoomOut(
+        id=room.id,
+        name=room.name,
+        room_type=room.room_type,
+        capacity=room.capacity,
+        price_per_hour=str(room.price_per_hour) if room.price_per_hour else None,
+        currency=room.currency,
+        total_units=room.total_units,
+        amenities=room.amenities or [],
+        images=room.images or [],
+        short_description=room.short_description,
+        active=room.active,
+    )
+
+
+@router.patch("/companies/{company_id}/conference-rooms/{room_id}", response_model=schemmas.ConferenceRoomOut)
+def admin_update_conference_room(
+    company_id: int,
+    room_id: int,
+    payload: schemmas.ConferenceRoomUpdate,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Update a conference room for a company - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+
+    room = next((item for item in company.lodging_profile.conference_rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Sala de conferência nao encontrada")
+
+    if payload.name is not None:
+        room.name = payload.name.strip()
+    if payload.room_type is not None:
+        room.room_type = payload.room_type
+    if payload.capacity is not None:
+        room.capacity = payload.capacity
+    if payload.price_per_hour is not None:
+        room.price_per_hour = payload.price_per_hour
+    if payload.currency is not None:
+        room.currency = payload.currency
+    if payload.total_units is not None:
+        room.total_units = payload.total_units
+    if payload.amenities is not None:
+        room.amenities = payload.amenities
+    if payload.images is not None:
+        room.images = payload.images
+    if payload.short_description is not None:
+        room.short_description = payload.short_description
+    if payload.active is not None:
+        room.active = payload.active
+
+    db.commit()
+    db.refresh(room)
+    return schemmas.ConferenceRoomOut(
+        id=room.id,
+        name=room.name,
+        room_type=room.room_type,
+        capacity=room.capacity,
+        price_per_hour=str(room.price_per_hour) if room.price_per_hour else None,
+        currency=room.currency,
+        total_units=room.total_units,
+        amenities=room.amenities or [],
+        images=room.images or [],
+        short_description=room.short_description,
+        active=room.active,
+    )
+
+
+@router.delete("/companies/{company_id}/conference-rooms/{room_id}")
+def admin_delete_conference_room(
+    company_id: int,
+    room_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Delete a conference room - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+
+    room = next((item for item in company.lodging_profile.conference_rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Sala de conferência nao encontrada")
+
+    db.delete(room)
+    db.commit()
+    return {"detail": "Sala de conferência eliminada"}
+
+
+@router.post("/companies/{company_id}/conference-rooms/{room_id}/upload-image")
+async def admin_upload_conference_room_image(
+    company_id: int,
+    room_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload image for a conference room - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+
+    room = next((item for item in company.lodging_profile.conference_rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Sala de conferência nao encontrada")
+
+    if not room.images:
+        room.images = []
+    image_url = await storage_manager.upload_file(
+        file,
+        f"{COMPANIES_FOLDER}/lodging/conference-rooms",
         allowed_mime_prefixes=("image/",),
     )
     room.images.append(image_url)
