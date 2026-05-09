@@ -1195,29 +1195,34 @@ def admin_delete_conference_room(
 
 @router.post("/send-sms")
 def admin_send_sms(
-    phone: str,
-    message: str,
-    sender_id: str = "AGVIAGEM",
+    payload: dict,
     _: models.User = Depends(_require_admin),
 ):
     """Enviar SMS manualmente - admin only"""
     from controllers.send_sms import send_sms
+    phone = payload.get("phone")
+    message = payload.get("message")
+    sender_id = payload.get("sender_id", "AGVIAGEM")
     result = send_sms(phone, message, sender_id)
     return result
 
 
+class BulkSmsRequest(BaseModel):
+    phones: list[str]
+    message: str
+    sender_id: str = "AGVIAGEM"
+
+
 @router.post("/send-bulk-sms")
 def admin_send_bulk_sms(
-    phones: list[str],
-    message: str,
-    sender_id: str = "AGVIAGEM",
+    payload: BulkSmsRequest,
     _: models.User = Depends(_require_admin),
 ):
     """Enviar SMS em massa para marketing - admin only"""
     from controllers.send_sms import send_sms
     results = []
-    for phone in phones:
-        result = send_sms(phone, message, sender_id)
+    for phone in payload.phones:
+        result = send_sms(phone, payload.message, payload.sender_id)
         results.append({"phone": phone, "result": result})
     return {"total_sent": len(results), "results": results}
 
