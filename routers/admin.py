@@ -5,7 +5,7 @@ import secrets
 from fastapi import APIRouter, Depends, File, HTTPException, status, UploadFile, Body
 from pydantic import BaseModel, Field
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 import models
 import schemmas
@@ -374,9 +374,11 @@ def admin_company_detail(
         .options(
             joinedload(models.Company.owner),
             joinedload(models.Company.services),
-            joinedload(models.Company.producer_profile),
-            joinedload(models.Company.restaurant_profile),
-            joinedload(models.Company.lodging_profile),
+            joinedload(models.Company.producer_profile).selectinload(models.ProducerProfile.products),
+            joinedload(models.Company.restaurant_profile).selectinload(models.RestaurantProfile.menu_items),
+            joinedload(models.Company.lodging_profile)
+            .selectinload(models.LodgingProfile.rooms)
+            .selectinload(models.LodgingProfile.conference_rooms),
         )
         .filter(models.Company.id == company_id)
         .first()
