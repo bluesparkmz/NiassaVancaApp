@@ -287,6 +287,9 @@ class LodgingRoomIn(BaseModel):
     amenities: List[str] = Field(default_factory=list)
     images: List[str] = Field(default_factory=list)
     short_description: Optional[str] = Field(default=None, max_length=255)
+    has_private_bathroom: bool = True
+    bathroom_description: Optional[str] = Field(default=None, max_length=500)
+    bathroom_images: List[str] = Field(default_factory=list)
 
 
 class LodgingRoomUpdate(BaseModel):
@@ -299,6 +302,9 @@ class LodgingRoomUpdate(BaseModel):
     amenities: Optional[List[str]] = None
     images: Optional[List[str]] = None
     short_description: Optional[str] = Field(default=None, max_length=255)
+    has_private_bathroom: Optional[bool] = None
+    bathroom_description: Optional[str] = Field(default=None, max_length=500)
+    bathroom_images: Optional[List[str]] = None
     active: Optional[bool] = None
 
 
@@ -313,6 +319,9 @@ class LodgingRoomOut(BaseModel):
     amenities: List[str] = []
     images: List[str] = []
     short_description: Optional[str] = None
+    has_private_bathroom: bool = True
+    bathroom_description: Optional[str] = None
+    bathroom_images: List[str] = []
     active: bool
 
 

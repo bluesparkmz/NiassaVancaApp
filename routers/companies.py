@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified, joinedload
 
 import models
 import schemmas
@@ -14,6 +15,7 @@ RESTAURANT_MENU_FOLDER = f"{COMPANIES_FOLDER}/restaurant-menu"
 RESTAURANT_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/restaurant-gallery"
 LODGING_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/lodging-gallery"
 LODGING_ROOMS_FOLDER = f"{COMPANIES_FOLDER}/lodging-rooms"
+LODGING_ROOM_BATHROOM_FOLDER = f"{COMPANIES_FOLDER}/lodging-room-bathrooms"
 PRODUCT_IMAGES_FOLDER = f"{COMPANIES_FOLDER}/products"
 COMPANY_GALLERY_FOLDER = f"{COMPANIES_FOLDER}/gallery"
 from database import get_db
@@ -99,6 +101,9 @@ def _lodging_room_out(item: models.LodgingRoom) -> schemmas.LodgingRoomOut:
         amenities=list(item.amenities or []),
         images=list(item.images or []),
         short_description=item.short_description,
+        has_private_bathroom=bool(item.has_private_bathroom),
+        bathroom_description=item.bathroom_description,
+        bathroom_images=list(item.bathroom_images or []),
         active=item.active,
     )
 
@@ -536,6 +541,9 @@ def create_lodging_room(
         amenities=payload.amenities,
         images=payload.images,
         short_description=payload.short_description,
+        has_private_bathroom=payload.has_private_bathroom,
+        bathroom_description=payload.bathroom_description,
+        bathroom_images=payload.bathroom_images,
         active=True,
     )
     db.add(room)
@@ -962,6 +970,7 @@ def add_restaurant_menu_item(
     items = list(company.restaurant_profile.menu_items or [])
     items.append(payload.model_dump())
     company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
     db.commit()
     return [schemmas.RestaurantMenuItem(**item) for item in items]
 
@@ -981,6 +990,7 @@ def delete_restaurant_menu_item(
         raise HTTPException(status_code=404, detail="Item do menu nao encontrado")
     items.pop(index)
     company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
     db.commit()
     return [schemmas.RestaurantMenuItem(**item) for item in items]
 
@@ -1000,15 +1010,13 @@ def update_restaurant_menu_item(
     if index < 0 or index >= len(items):
         raise HTTPException(status_code=404, detail="Item do menu nao encontrado")
     
-    # Update existing item preserving fields not in payload if any (though currently payload has all)
-    current = items[index]
-    updated = payload.model_dump()
-    # Preserve image if not provided in payload but exists in current
-    if not updated.get("image") and current.get("image"):
+    current = dict(items[index])
+    updated = {**current, **payload.model_dump()}
+    if not payload.image and current.get("image"):
         updated["image"] = current["image"]
-        
     items[index] = updated
     company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
     db.commit()
     return [schemmas.RestaurantMenuItem(**item) for item in items]
 
@@ -1035,6 +1043,7 @@ async def upload_restaurant_menu_item_image(
     )
     items[index]["image"] = url
     company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
     db.commit()
     return {"url": url}
 
@@ -1102,10 +1111,39 @@ async def upload_lodging_room_image(
         LODGING_ROOMS_FOLDER,
         allowed_mime_prefixes=("image/",),
     )
-    room.images = [url]
+    images = list(room.images or [])
+    images.append(url)
+    room.images = images
     db.commit()
     db.refresh(room)
     return {"url": url, "images": list(room.images or [])}
+
+
+@router.post("/{company_id}/rooms/{room_id}/upload-bathroom-image")
+async def upload_lodging_room_bathroom_image(
+    company_id: int,
+    room_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    company = _owned_company(db, company_id, current_user)
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa sem perfil de alojamento")
+    room = next((item for item in company.lodging_profile.rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Quarto nao encontrado")
+    url = await storage_manager.upload_file(
+        file,
+        LODGING_ROOM_BATHROOM_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    bathroom_images = list(room.bathroom_images or [])
+    bathroom_images.append(url)
+    room.bathroom_images = bathroom_images
+    db.commit()
+    db.refresh(room)
+    return {"url": url, "bathroom_images": list(room.bathroom_images or [])}
 
 
 @router.post("/{company_id}/services", response_model=schemmas.CompanyServiceOut)

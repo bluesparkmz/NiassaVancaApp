@@ -13,13 +13,17 @@ from auth import get_current_user, get_password_hash
 from controllers.storage_manager import storage_manager, COMPANIES_FOLDER
 from database import get_db
 from routers.companies import (
+    LODGING_ROOM_BATHROOM_FOLDER,
+    RESTAURANT_MENU_FOLDER,
     _company_out,
     _company_type_value,
     _create_company_profile,
     _ensure_company_profiles_for_type,
     _ensure_unique_slug,
+    _lodging_room_out,
     _slugify,
 )
+from sqlalchemy.orm.attributes import flag_modified
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -426,6 +430,11 @@ def admin_company_detail(
                 "currency": r.currency,
                 "total_units": r.total_units,
                 "active": r.active,
+                "images": r.images or [],
+                "short_description": r.short_description,
+                "has_private_bathroom": bool(r.has_private_bathroom),
+                "bathroom_description": r.bathroom_description,
+                "bathroom_images": r.bathroom_images or [],
             })
 
     conference_rooms = []
@@ -887,16 +896,7 @@ def admin_list_rooms(
         raise HTTPException(status_code=404, detail="Empresa nao encontrada")
     if not company.lodging_profile:
         return []
-    return [schemmas.LodgingRoomOut(
-        id=r.id,
-        name=r.name,
-        room_type=r.room_type,
-        capacity=r.capacity,
-        price_per_night=str(r.price_per_night) if r.price_per_night else None,
-        currency=r.currency,
-        total_units=r.total_units,
-        active=r.active,
-    ) for r in company.lodging_profile.rooms if r.active]
+    return [_lodging_room_out(r) for r in company.lodging_profile.rooms if r.active]
 
 
 @router.post("/companies/{company_id}/rooms", response_model=schemmas.LodgingRoomOut)
@@ -921,28 +921,25 @@ def admin_create_room(
         price_per_night=payload.price_per_night,
         currency=payload.currency or "MZN",
         total_units=payload.total_units,
+        amenities=payload.amenities,
+        images=payload.images,
+        short_description=payload.short_description,
+        has_private_bathroom=payload.has_private_bathroom,
+        bathroom_description=payload.bathroom_description,
+        bathroom_images=payload.bathroom_images,
         active=True,
     )
     db.add(room)
     db.commit()
     db.refresh(room)
-    return schemmas.LodgingRoomOut(
-        id=room.id,
-        name=room.name,
-        room_type=room.room_type,
-        capacity=room.capacity,
-        price_per_night=str(room.price_per_night) if room.price_per_night else None,
-        currency=room.currency,
-        total_units=room.total_units,
-        active=room.active,
-    )
+    return _lodging_room_out(room)
 
 
 @router.patch("/companies/{company_id}/rooms/{room_id}", response_model=schemmas.LodgingRoomOut)
 def admin_update_room(
     company_id: int,
     room_id: int,
-    payload: schemmas.LodgingRoomIn,
+    payload: schemmas.LodgingRoomUpdate,
     db: Session = Depends(get_db),
     _: models.User = Depends(_require_admin),
 ):
@@ -957,31 +954,15 @@ def admin_update_room(
     if not room:
         raise HTTPException(status_code=404, detail="Quarto nao encontrado")
 
-    if payload.name is not None:
-        room.name = payload.name.strip()
-    if payload.room_type is not None:
-        room.room_type = payload.room_type
-    if payload.capacity is not None:
-        room.capacity = payload.capacity
-    if payload.price_per_night is not None:
-        room.price_per_night = payload.price_per_night
-    if payload.currency is not None:
-        room.currency = payload.currency
-    if payload.total_units is not None:
-        room.total_units = payload.total_units
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data and data["name"] is not None:
+        data["name"] = data["name"].strip()
+    for key, value in data.items():
+        setattr(room, key, value)
 
     db.commit()
     db.refresh(room)
-    return schemmas.LodgingRoomOut(
-        id=room.id,
-        name=room.name,
-        room_type=room.room_type,
-        capacity=room.capacity,
-        price_per_night=str(room.price_per_night) if room.price_per_night else None,
-        currency=room.currency,
-        total_units=room.total_units,
-        active=room.active,
-    )
+    return _lodging_room_out(room)
 
 
 @router.delete("/companies/{company_id}/rooms/{room_id}")
@@ -1033,10 +1014,44 @@ async def admin_upload_room_image(
         f"{COMPANIES_FOLDER}/lodging/rooms",
         allowed_mime_prefixes=("image/",),
     )
-    room.images.append(image_url)
+    images = list(room.images or [])
+    images.append(image_url)
+    room.images = images
     db.commit()
     db.refresh(room)
-    return {"url": image_url}
+    return {"url": image_url, "images": list(room.images or [])}
+
+
+@router.post("/companies/{company_id}/rooms/{room_id}/upload-bathroom-image")
+async def admin_upload_room_bathroom_image(
+    company_id: int,
+    room_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload bathroom image for a lodging room - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.lodging_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de alojamento")
+
+    room = next((item for item in company.lodging_profile.rooms if item.id == room_id), None)
+    if not room:
+        raise HTTPException(status_code=404, detail="Quarto nao encontrado")
+
+    image_url = await storage_manager.upload_file(
+        file,
+        LODGING_ROOM_BATHROOM_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    bathroom_images = list(room.bathroom_images or [])
+    bathroom_images.append(image_url)
+    room.bathroom_images = bathroom_images
+    db.commit()
+    db.refresh(room)
+    return {"url": image_url, "bathroom_images": list(room.bathroom_images or [])}
 
 
 # --------------- Conference Rooms for admin ---------------
@@ -1316,6 +1331,38 @@ def admin_add_menu_item(
     items = list(company.restaurant_profile.menu_items or [])
     items.append(payload.model_dump())
     company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
+    db.commit()
+    db.refresh(company)
+    return [schemmas.RestaurantMenuItem(**item) for item in items]
+
+
+@router.put("/companies/{company_id}/restaurant-menu/{index}", response_model=list[schemmas.RestaurantMenuItem])
+def admin_update_menu_item(
+    company_id: int,
+    index: int,
+    payload: schemmas.RestaurantMenuItem,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Update a menu item - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.restaurant_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de restaurante")
+
+    items = list(company.restaurant_profile.menu_items or [])
+    if index < 0 or index >= len(items):
+        raise HTTPException(status_code=404, detail="Item do menu nao encontrado")
+
+    current = dict(items[index])
+    updated = {**current, **payload.model_dump()}
+    if not payload.image and current.get("image"):
+        updated["image"] = current["image"]
+    items[index] = updated
+    company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
     db.commit()
     db.refresh(company)
     return [schemmas.RestaurantMenuItem(**item) for item in items]
@@ -1341,6 +1388,38 @@ def admin_delete_menu_item(
     
     items.pop(index)
     company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
     db.commit()
     db.refresh(company)
     return [schemmas.RestaurantMenuItem(**item) for item in items]
+
+
+@router.post("/companies/{company_id}/restaurant-menu/{index}/upload-image")
+async def admin_upload_menu_item_image(
+    company_id: int,
+    index: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(_require_admin),
+):
+    """Upload image for a menu item - admin only"""
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa nao encontrada")
+    if not company.restaurant_profile:
+        raise HTTPException(status_code=400, detail="Empresa nao tem perfil de restaurante")
+
+    items = list(company.restaurant_profile.menu_items or [])
+    if index < 0 or index >= len(items):
+        raise HTTPException(status_code=404, detail="Item do menu nao encontrado")
+
+    url = await storage_manager.upload_file(
+        file,
+        RESTAURANT_MENU_FOLDER,
+        allowed_mime_prefixes=("image/",),
+    )
+    items[index]["image"] = url
+    company.restaurant_profile.menu_items = items
+    flag_modified(company.restaurant_profile, "menu_items")
+    db.commit()
+    return {"url": url}

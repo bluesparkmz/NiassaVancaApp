@@ -127,6 +127,9 @@ def _lodging_room_out(item: models.LodgingRoom) -> schemmas.LodgingRoomOut:
         amenities=list(item.amenities or []),
         images=list(item.images or []),
         short_description=item.short_description,
+        has_private_bathroom=bool(item.has_private_bathroom),
+        bathroom_description=item.bathroom_description,
+        bathroom_images=list(item.bathroom_images or []),
         active=item.active,
     )
 
