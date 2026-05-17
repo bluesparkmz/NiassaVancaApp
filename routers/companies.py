@@ -1,8 +1,8 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified, joinedload
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm.attributes import flag_modified
 
 import models
 import schemmas
