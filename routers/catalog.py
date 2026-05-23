@@ -82,6 +82,7 @@ def _restaurant_summary(profile: models.RestaurantProfile) -> schemmas.Restauran
         cuisine=profile.cuisine,
         signature=profile.signature,
         short_description=company.short_description,
+        supports_lodging=company.lodging_profile is not None,
     )
 
 
@@ -302,7 +303,7 @@ def home(db: Session = Depends(get_db)):
     restaurants = (
         db.query(models.RestaurantProfile)
         .join(models.Company)
-        .options(joinedload(models.RestaurantProfile.company))
+        .options(joinedload(models.RestaurantProfile.company).joinedload(models.Company.lodging_profile))
         .filter(
             models.RestaurantProfile.active == True,
             # models.Company.status == models.CompanyStatus.APPROVED,
@@ -413,7 +414,7 @@ def list_restaurants(db: Session = Depends(get_db)):
     items = (
         db.query(models.RestaurantProfile)
         .join(models.Company)
-        .options(joinedload(models.RestaurantProfile.company))
+        .options(joinedload(models.RestaurantProfile.company).joinedload(models.Company.lodging_profile))
         .filter(models.RestaurantProfile.active == True)
         .order_by(models.Company.is_featured.desc(), models.RestaurantProfile.rating.desc())
         .all()
@@ -426,7 +427,7 @@ def get_restaurant(slug: str, db: Session = Depends(get_db)):
     item = (
         db.query(models.RestaurantProfile)
         .join(models.Company)
-        .options(joinedload(models.RestaurantProfile.company))
+        .options(joinedload(models.RestaurantProfile.company).joinedload(models.Company.lodging_profile))
         .filter(models.Company.slug == slug)
         .first()
     )

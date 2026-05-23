@@ -597,6 +597,7 @@ class RestaurantSummary(BaseModel):
     cuisine: Optional[str] = None
     signature: Optional[str] = None
     short_description: Optional[str] = None
+    supports_lodging: bool = False
 
 
 class RestaurantMenuItem(BaseModel):
