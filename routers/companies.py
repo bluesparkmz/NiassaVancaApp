@@ -597,9 +597,10 @@ def delete_lodging_room(
 def list_conference_rooms(
     company_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
 ):
-    company = _owned_company(db, company_id, current_user)
+    company = db.query(models.Company).filter(models.Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
     if not company.lodging_profile:
         return []
     return [
